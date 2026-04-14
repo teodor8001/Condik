@@ -1,0 +1,256 @@
+package com.example.workipi.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.workipi.data.mock.MockSession
+import com.example.workipi.data.model.UserRole
+import com.example.workipi.navigation.Screen
+
+// ---------------------------------------------------------------------------
+// Model item meniu
+// ---------------------------------------------------------------------------
+private data class NavItem(
+    val screen: Screen,
+    val label: String,
+    val icon: ImageVector
+)
+
+private val adminItems = listOf(
+    NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
+    NavItem(Screen.Proiecte,    "Proiecte",   Icons.Filled.Business),
+    NavItem(Screen.Pontare,     "Pontare",    Icons.Filled.Timer),
+    NavItem(Screen.Calitate,    "Calitate",   Icons.Filled.VerifiedUser),
+    NavItem(Screen.Angajati,    "Angajati",   Icons.Filled.Group),
+    NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
+    NavItem(Screen.Preturi,     "Preturi",    Icons.Filled.Payments),
+)
+
+private val angajatItems = listOf(
+    NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
+    NavItem(Screen.Pontare,     "Pontare",    Icons.Filled.Timer),
+    NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
+)
+
+// ---------------------------------------------------------------------------
+// Continutul vizual al drawer-ului (header + itemi + footer)
+// ---------------------------------------------------------------------------
+@Composable
+private fun DrawerContent(
+    navController: NavController,
+    currentRoute: String?,
+    onItemClick: () -> Unit = {}
+) {
+    val user  = MockSession.currentUser
+    val items = when (user?.role) {
+        UserRole.ANGAJAT -> angajatItems
+        else             -> adminItems
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(260.dp)
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(vertical = 24.dp)
+    ) {
+        // ---- Header: logo ----
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = "WorkIPI",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Management santier",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 0.5.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // ---- Itemi navigare ----
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items.forEach { item ->
+                val selected = currentRoute == item.screen.route
+                NavigationDrawerItem(
+                    icon = {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.label,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = item.label,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                    },
+                    selected = selected,
+                    onClick = {
+                        onItemClick()
+                        if (currentRoute != item.screen.route) {
+                            navController.navigate(item.screen.route) {
+                                popUpTo(Screen.Home.route) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        selectedIconColor      = MaterialTheme.colorScheme.primary,
+                        selectedTextColor      = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor    = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor    = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+
+        // ---- Footer: user info ----
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (user != null) {
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Avatar initiale
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = user.name
+                            .split(" ")
+                            .take(2)
+                            .joinToString("") { it.first().uppercase() },
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = user.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = when (user.role) {
+                            UserRole.ADMIN           -> "Administrator"
+                            UserRole.PROJECT_MANAGER -> "Manager proiect"
+                            UserRole.ANGAJAT         -> "Angajat"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Wrapper principal — alege Permanent (tableta) sau Modal (telefon)
+// ---------------------------------------------------------------------------
+@Composable
+fun AppNavigationDrawer(
+    navController: NavController,
+    content: @Composable () -> Unit
+) {
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute   = backStackEntry?.destination?.route
+    val showDrawer     = currentRoute != null && currentRoute != Screen.Login.route
+
+    if (!showDrawer) {
+        content()
+        return
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isTabletLandscape = maxWidth > 600.dp
+
+        if (isTabletLandscape) {
+            // Tabletă: drawer permanent vizibil in stanga
+            PermanentNavigationDrawer(
+                drawerContent = {
+                    PermanentDrawerSheet(
+                        modifier = Modifier.width(260.dp),
+                        drawerContainerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        DrawerContent(
+                            navController  = navController,
+                            currentRoute   = currentRoute
+                        )
+                    }
+                }
+            ) {
+                content()
+            }
+        } else {
+            // Telefon: drawer modal (slide din stanga)
+            val drawerState = rememberDrawerState(DrawerValue.Closed)
+
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                drawerContent = {
+                    ModalDrawerSheet(
+                        drawerContainerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        DrawerContent(
+                            navController = navController,
+                            currentRoute  = currentRoute,
+                            onItemClick   = {
+                                // Inchide drawer-ul dupa navigare
+                            }
+                        )
+                    }
+                }
+            ) {
+                content()
+            }
+        }
+    }
+}
