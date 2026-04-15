@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +25,7 @@ import com.example.workipi.data.model.Employee
 import com.example.workipi.data.model.Project
 import com.example.workipi.data.model.Skill
 import com.example.workipi.data.model.UserRole
+import com.example.workipi.ui.components.LocalOpenDrawer
 import com.example.workipi.ui.components.SuccessToast
 
 private data class SkillEntry(
@@ -37,12 +39,31 @@ private data class SkillEntry(
 @Composable
 fun PontareScreen(navController: NavController) {
     val currentUser = MockSession.currentUser
+    val openDrawer  = LocalOpenDrawer.current
 
     if (currentUser == null ||
         (currentUser.role != UserRole.ADMIN && currentUser.role != UserRole.PROJECT_MANAGER)
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Nu ai acces la aceasta sectiune.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (openDrawer != null) {
+                IconButton(
+                    onClick  = { openDrawer() },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp)
+                ) {
+                    Icon(
+                        imageVector        = Icons.Filled.Menu,
+                        contentDescription = "Deschide meniu",
+                        tint               = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+            }
+            Text(
+                text     = "Nu ai acces la aceasta sectiune.",
+                color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
         return
     }
@@ -64,16 +85,41 @@ fun PontareScreen(navController: NavController) {
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
-                .padding(horizontal = 20.dp, vertical = 24.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text(
-                text = "Pontare",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            // ---- Header FIX (nu scrolleaza) ----
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 4.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (openDrawer != null) {
+                    IconButton(onClick = { openDrawer() }) {
+                        Icon(
+                            imageVector = Icons.Filled.Menu,
+                            contentDescription = "Deschide meniu",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                }
+                Text(
+                    text = "Pontare",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
+            // ---- Continut scrollabil ----
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -191,8 +237,9 @@ fun PontareScreen(navController: NavController) {
                         Text("Salveaza pontaj", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                     }
                 }
-            }
-        }
+            } // sfarsit Card
+            } // sfarsit Column scrollabil
+        } // sfarsit Column exterior (background)
 
         // Toast overlay
         Box(

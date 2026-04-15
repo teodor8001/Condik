@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -22,13 +23,15 @@ import com.example.workipi.data.mock.MockData
 import com.example.workipi.data.model.Project
 import com.example.workipi.data.model.ProjectStatus
 import com.example.workipi.navigation.Screen
+import com.example.workipi.ui.components.LocalOpenDrawer
 import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
 fun ProiecteScreen(navController: NavController) {
-    val projects = MockData.projects
+    val projects   = MockData.projects
+    val openDrawer = LocalOpenDrawer.current
 
     BoxWithConstraints(
         modifier = Modifier
@@ -42,22 +45,37 @@ fun ProiecteScreen(navController: NavController) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = padding, vertical = 24.dp),
+                .padding(horizontal = padding)
+                .padding(top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // ---- Header ----
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Proiecte",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "${projects.size} proiecte active",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (openDrawer != null) {
+                    IconButton(onClick = { openDrawer() }) {
+                        Icon(
+                            imageVector = Icons.Filled.Menu,
+                            contentDescription = "Deschide meniu",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Proiecte",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "${projects.size} proiecte active",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             // ---- Grid proiecte ----

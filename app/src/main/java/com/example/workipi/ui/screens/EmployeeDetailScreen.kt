@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -23,11 +24,13 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
 import com.example.workipi.ui.components.LevelBadge
+import com.example.workipi.ui.components.LocalOpenDrawer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmployeeDetailScreen(navController: NavController, employeeId: String?) {
-    val employee = employeeId?.let { MockData.employees.find { e -> e.id == it } } ?: return
+    val employee   = employeeId?.let { MockData.employees.find { e -> e.id == it } } ?: return
+    val openDrawer = LocalOpenDrawer.current
 
     Scaffold(
         topBar = {
@@ -36,6 +39,16 @@ fun EmployeeDetailScreen(navController: NavController, employeeId: String?) {
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Inapoi")
+                    }
+                },
+                actions = {
+                    if (openDrawer != null) {
+                        IconButton(onClick = { openDrawer() }) {
+                            Icon(
+                                imageVector = Icons.Filled.Menu,
+                                contentDescription = "Deschide meniu"
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

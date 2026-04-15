@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -23,6 +24,7 @@ import com.example.workipi.data.mock.MockData
 import com.example.workipi.data.model.Employee
 import com.example.workipi.data.model.ProjectTask
 import com.example.workipi.ui.components.LevelBadge
+import com.example.workipi.ui.components.LocalOpenDrawer
 import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -35,6 +37,8 @@ fun ProjectDetailScreen(navController: NavController, projectId: String?) {
     val ronFormatter = NumberFormat.getNumberInstance(Locale("ro", "RO")).apply {
         maximumFractionDigits = 0
     }
+
+    val openDrawer = LocalOpenDrawer.current
 
     BoxWithConstraints(
         modifier = Modifier
@@ -59,6 +63,16 @@ fun ProjectDetailScreen(navController: NavController, projectId: String?) {
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Inapoi"
                             )
+                        }
+                    },
+                    actions = {
+                        if (openDrawer != null) {
+                            IconButton(onClick = { openDrawer() }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Menu,
+                                    contentDescription = "Deschide meniu"
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

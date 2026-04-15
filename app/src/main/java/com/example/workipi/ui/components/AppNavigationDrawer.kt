@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,6 +21,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.workipi.data.mock.MockSession
 import com.example.workipi.data.model.UserRole
 import com.example.workipi.navigation.Screen
+import kotlinx.coroutines.launch
+
+// ---------------------------------------------------------------------------
+// CompositionLocal — ofera acces la "deschide drawer" din orice screen copil.
+// Null pe tableta (drawer permanent, buton hamburger nu e necesar).
+// ---------------------------------------------------------------------------
+val LocalOpenDrawer = compositionLocalOf<(() -> Unit)?> { null }
 
 // ---------------------------------------------------------------------------
 // Model item meniu
@@ -42,7 +50,6 @@ private val adminItems = listOf(
 
 private val angajatItems = listOf(
     NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
-    NavItem(Screen.Pontare,     "Pontare",    Icons.Filled.Timer),
     NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
 )
 
@@ -151,7 +158,6 @@ private fun DrawerContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Avatar initiale
                 Box(
                     modifier = Modifier
                         .size(38.dp)
@@ -209,30 +215,39 @@ fun AppNavigationDrawer(
         return
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val isTabletLandscape = maxWidth > 600.dp
+    // Detectare dimensiune ecran fara BoxWithConstraints (mai fiabila)
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val isTablet      = screenWidthDp > 600
 
-        if (isTabletLandscape) {
-            // Tabletă: drawer permanent vizibil in stanga
-            PermanentNavigationDrawer(
-                drawerContent = {
-                    PermanentDrawerSheet(
-                        modifier = Modifier.width(260.dp),
-                        drawerContainerColor = MaterialTheme.colorScheme.surface
-                    ) {
-                        DrawerContent(
-                            navController  = navController,
-                            currentRoute   = currentRoute
-                        )
-                    }
+    // remember-uri NECONDITIONATE — evita probleme cu ordinea slot-urilor Compose
+    val drawerState    = rememberDrawerState(DrawerValue.Closed)
+    val coroutineScope = rememberCoroutineScope()
+
+    if (isTablet) {
+        // Tableta: drawer permanent vizibil in stanga, fara hamburger
+        PermanentNavigationDrawer(
+            drawerContent = {
+                PermanentDrawerSheet(
+                    modifier = Modifier.width(260.dp),
+                    drawerContainerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    DrawerContent(
+                        navController = navController,
+                        currentRoute  = currentRoute
+                    )
                 }
-            ) {
+            }
+        ) {
+            // statusBarsPadding o singura data, la nivel de wrapper
+            Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 content()
             }
-        } else {
-            // Telefon: drawer modal (slide din stanga)
-            val drawerState = rememberDrawerState(DrawerValue.Closed)
-
+        }
+    } else {
+        // Telefon: drawer modal + LocalOpenDrawer furnizat copiilor
+        CompositionLocalProvider(
+            LocalOpenDrawer provides { coroutineScope.launch { drawerState.open() } }
+        ) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
@@ -243,13 +258,16 @@ fun AppNavigationDrawer(
                             navController = navController,
                             currentRoute  = currentRoute,
                             onItemClick   = {
-                                // Inchide drawer-ul dupa navigare
+                                coroutineScope.launch { drawerState.close() }
                             }
                         )
                     }
                 }
             ) {
-                content()
+                // statusBarsPadding o singura data, la nivel de wrapper
+                Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                    content()
+                }
             }
         }
     }
