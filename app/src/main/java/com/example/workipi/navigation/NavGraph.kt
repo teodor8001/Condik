@@ -42,6 +42,7 @@ fun NavGraph(navController: NavHostController) {
             }
             composable(Screen.Leaderboard.route) { LeaderboardScreen(navController) }
             composable(Screen.Preturi.route)     { PreturiScreen(navController) }
+            composable(Screen.Settings.route)    { SettingsScreen(navController) }
         }
     }
 }
