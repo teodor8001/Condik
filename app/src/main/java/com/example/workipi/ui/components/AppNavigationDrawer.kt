@@ -268,10 +268,6 @@ fun AppNavigationDrawer(
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
     val isTablet      = screenWidthDp > 600
 
-    // remember-uri NECONDITIONATE — evita probleme cu ordinea slot-urilor Compose
-    val drawerState    = rememberDrawerState(DrawerValue.Closed)
-    val coroutineScope = rememberCoroutineScope()
-
     if (isTablet) {
         // Tableta: drawer permanent vizibil in stanga, fara hamburger
         PermanentNavigationDrawer(
@@ -291,30 +287,30 @@ fun AppNavigationDrawer(
             Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 content()
             }
-        } else {
-            // Telefon: drawer modal (slide din stanga)
-            val drawerState = rememberDrawerState(DrawerValue.Closed)
+        }
+    } else {
+        // Telefon: drawer modal (slide din stanga)
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
 
-            ModalNavigationDrawer(
-                drawerState = drawerState,
-                drawerContent = {
-                    ModalDrawerSheet(
-                        drawerContainerColor = MaterialTheme.colorScheme.surface
-                    ) {
-                        DrawerContent(
-                            navController = navController,
-                            currentRoute  = currentRoute,
-                            onItemClick   = {
-                                // Inchide drawer-ul dupa navigare
-                            }
-                        )
-                    }
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    drawerContainerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    DrawerContent(
+                        navController = navController,
+                        currentRoute  = currentRoute,
+                        onItemClick   = {
+                            // Inchide drawer-ul dupa navigare
+                        }
+                    )
                 }
-            ) {
-                // statusBarsPadding o singura data, la nivel de wrapper
-                Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-                    content()
-                }
+            }
+        ) {
+            // statusBarsPadding o singura data, la nivel de wrapper
+            Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                content()
             }
         }
     }
