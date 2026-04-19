@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,6 +22,7 @@ import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
 import com.example.workipi.data.model.Employee
 import com.example.workipi.navigation.Screen
+import com.example.workipi.ui.components.LocalOpenDrawer
 import kotlin.math.ceil
 
 private data class MedalStyle(
@@ -39,27 +42,43 @@ fun LeaderboardScreen(navController: NavController) {
     val sorted       = MockData.employees.sortedByDescending { it.points }
     val topCount     = ceil(sorted.size / 2.0).toInt()
     val topEmployees = sorted.take(topCount)
+    val openDrawer   = LocalOpenDrawer.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+            .padding(horizontal = 20.dp)
+            .padding(top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // ---- Header ----
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = "Topuri",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                text = "Top $topCount din ${MockData.employees.size} angajati",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (openDrawer != null) {
+                IconButton(onClick = { openDrawer() }) {
+                    Icon(
+                        imageVector = Icons.Filled.Menu,
+                        contentDescription = "Deschide meniu",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "Topuri",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Top $topCount din ${MockData.employees.size} angajati",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         // ---- Top 3 carduri: locul 2 stanga, locul 1 mijloc, locul 3 dreapta ----
@@ -108,7 +127,7 @@ fun LeaderboardScreen(navController: NavController) {
     }
 }
 
-// ---- Card pentru locurile 1, 2, 3 ----
+// ---- Card pentru locurile 1, 2, 3 — layout vertical compact pentru telefon ----
 @Composable
 private fun TopThreeCard(
     position: Int,
@@ -125,31 +144,20 @@ private fun TopThreeCard(
         colors = CardDefaults.cardColors(containerColor = medal.bg),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // Stanga: medalie + numar
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(text = medal.emoji, fontSize = 28.sp)
-                Text(
-                    text = "$position",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = medal.accent
-                )
-            }
+            // Emoji medalie
+            Text(text = medal.emoji, fontSize = 26.sp)
 
             // Avatar
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
                     .background(medal.accent.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
@@ -160,26 +168,28 @@ private fun TopThreeCard(
                         .take(2)
                         .joinToString("") { it.first().uppercase() },
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     color = medal.accent
                 )
             }
 
-            // Nume + puncte
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = employee.name.split(" ").first(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "${employee.points} pts",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = medal.accent
-                )
-            }
+            // Prenume (maxLines=1 pentru ecrane mici)
+            Text(
+                text = employee.name.split(" ").first(),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+
+            // Puncte
+            Text(
+                text = "${employee.points} pts",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = medal.accent
+            )
         }
     }
 }

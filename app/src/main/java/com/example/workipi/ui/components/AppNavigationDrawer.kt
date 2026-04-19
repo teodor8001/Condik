@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,6 +23,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.workipi.data.mock.MockSession
 import com.example.workipi.data.model.UserRole
 import com.example.workipi.navigation.Screen
+import kotlinx.coroutines.launch
+
+// ---------------------------------------------------------------------------
+// CompositionLocal — ofera acces la "deschide drawer" din orice screen copil.
+// Null pe tableta (drawer permanent, buton hamburger nu e necesar).
+// ---------------------------------------------------------------------------
+val LocalOpenDrawer = compositionLocalOf<(() -> Unit)?> { null }
 
 // ---------------------------------------------------------------------------
 // Model item meniu
@@ -44,7 +52,6 @@ private val adminItems = listOf(
 
 private val angajatItems = listOf(
     NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
-    NavItem(Screen.Pontare,     "Pontare",    Icons.Filled.Timer),
     NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
 )
 
@@ -160,24 +167,23 @@ private fun DrawerContent(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Avatar initiale
                     Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = user.name
-                                .split(" ")
-                                .take(2)
-                                .joinToString("") { it.first().uppercase() },
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = user.name
+                            .split(" ")
+                            .take(2)
+                            .joinToString("") { it.first().uppercase() },
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -258,46 +264,52 @@ fun AppNavigationDrawer(
         return
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val isTabletLandscape = maxWidth > 600.dp
+    // Detectare dimensiune ecran fara BoxWithConstraints (mai fiabila)
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val isTablet      = screenWidthDp > 600
 
-        if (isTabletLandscape) {
-            // Tabletă: drawer permanent vizibil in stanga
-            PermanentNavigationDrawer(
-                drawerContent = {
-                    PermanentDrawerSheet(
-                        modifier = Modifier.width(260.dp),
-                        drawerContainerColor = MaterialTheme.colorScheme.surface
-                    ) {
-                        DrawerContent(
-                            navController  = navController,
-                            currentRoute   = currentRoute
-                        )
-                    }
+    if (isTablet) {
+        // Tableta: drawer permanent vizibil in stanga, fara hamburger
+        PermanentNavigationDrawer(
+            drawerContent = {
+                PermanentDrawerSheet(
+                    modifier = Modifier.width(260.dp),
+                    drawerContainerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    DrawerContent(
+                        navController = navController,
+                        currentRoute  = currentRoute
+                    )
                 }
-            ) {
+            }
+        ) {
+            // statusBarsPadding o singura data, la nivel de wrapper
+            Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 content()
             }
-        } else {
-            // Telefon: drawer modal (slide din stanga)
-            val drawerState = rememberDrawerState(DrawerValue.Closed)
-            val scope = rememberCoroutineScope()
+        }
+    } else {
+        // Telefon: drawer modal (slide din stanga)
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
 
-            ModalNavigationDrawer(
-                drawerState = drawerState,
-                drawerContent = {
-                    ModalDrawerSheet(
-                        drawerContainerColor = MaterialTheme.colorScheme.surface
-                    ) {
-                        DrawerContent(
-                            navController = navController,
-                            currentRoute  = currentRoute,
-                            onItemClick   = { scope.launch { drawerState.close() } },
-                            onCloseDrawer = { scope.launch { drawerState.close() } }
-                        )
-                    }
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    drawerContainerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    DrawerContent(
+                        navController = navController,
+                        currentRoute  = currentRoute,
+                        onItemClick   = {
+                            // Inchide drawer-ul dupa navigare
+                        }
+                    )
                 }
-            ) {
+            }
+        ) {
+            // statusBarsPadding o singura data, la nivel de wrapper
+            Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 content()
             }
         }

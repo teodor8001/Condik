@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +23,7 @@ import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
 import com.example.workipi.data.model.MeasureUnit
 import com.example.workipi.data.model.Skill
+import com.example.workipi.ui.components.LocalOpenDrawer
 
 @Composable
 fun PreturiScreen(navController: NavController) {
@@ -29,12 +31,14 @@ fun PreturiScreen(navController: NavController) {
     var skills        by remember { mutableStateOf(MockData.skills.toList()) }
     var editingSkill  by remember { mutableStateOf<Skill?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
+    val openDrawer    = LocalOpenDrawer.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+            .padding(horizontal = 20.dp)
+            .padding(top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // ---- Header ----
@@ -43,18 +47,29 @@ fun PreturiScreen(navController: NavController) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Preturi",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "${skills.size} skill-uri definite",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (openDrawer != null) {
+                    IconButton(onClick = { openDrawer() }) {
+                        Icon(
+                            imageVector = Icons.Filled.Menu,
+                            contentDescription = "Deschide meniu",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Preturi",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "${skills.size} skill-uri definite",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             Button(
                 onClick = { showAddDialog = true },

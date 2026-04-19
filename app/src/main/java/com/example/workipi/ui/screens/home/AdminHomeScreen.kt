@@ -7,15 +7,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
 import com.example.workipi.data.mock.MockSession
+import com.example.workipi.ui.components.LocalOpenDrawer
 import com.example.workipi.ui.components.StatCard
 import java.text.NumberFormat
 import java.util.Locale
@@ -23,8 +26,9 @@ import kotlin.math.roundToInt
 
 @Composable
 fun AdminHomeScreen(navController: NavController) {
-    val user     = MockSession.currentUser ?: return
-    val projects = MockData.projects
+    val user       = MockSession.currentUser ?: return
+    val projects   = MockData.projects
+    val openDrawer = LocalOpenDrawer.current
 
     // ---- Metrici calculate ----
     val avgProgress = projects.map { it.progress }.average().toFloat()
@@ -47,31 +51,52 @@ fun AdminHomeScreen(navController: NavController) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Tabletă landscape: latime > 600dp → carduri in rand
         val isTabletLandscape = maxWidth > 600.dp
+        val hPad = if (isTabletLandscape) 32.dp else 20.dp
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(if (isTabletLandscape) 32.dp else 20.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            // ---- Header ----
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Buna ziua, ${user.name.split(" ").first()}!",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Iata un sumar al activitatii curente",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        Column(modifier = Modifier.fillMaxSize()) {
+
+            // ---- Header FIX (nu scrolleaza pe telefon) ----
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = if (openDrawer != null) 4.dp else hPad, end = hPad, top = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (openDrawer != null) {
+                    IconButton(onClick = { openDrawer() }) {
+                        Icon(
+                            imageVector = Icons.Filled.Menu,
+                            contentDescription = "Deschide meniu",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Buna ziua, ${user.name.split(" ").first()}!",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Iata un sumar al activitatii curente",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
+            // ---- Continut scrollabil ----
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = hPad)
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
             // ---- Sectiune Statistici Generale ----
             Text(
                 text = "Statistici generale",
@@ -140,6 +165,7 @@ fun AdminHomeScreen(navController: NavController) {
                     )
                 }
             }
-        }
-    }
+            } // sfarsit Column scrollabil
+        } // sfarsit Column exterior (fillMaxSize)
+    } // sfarsit BoxWithConstraints
 }
