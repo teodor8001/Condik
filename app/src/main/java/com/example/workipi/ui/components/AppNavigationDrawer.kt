@@ -1,6 +1,7 @@
 package com.example.workipi.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,6 +10,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -60,7 +62,8 @@ private val angajatItems = listOf(
 private fun DrawerContent(
     navController: NavController,
     currentRoute: String?,
-    onItemClick: () -> Unit = {}
+    onItemClick: () -> Unit = {},
+    onCloseDrawer: () -> Unit = {}
 ) {
     val user  = MockSession.currentUser
     val items = when (user?.role) {
@@ -151,14 +154,20 @@ private fun DrawerContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         if (user != null) {
-            Row(
-                modifier = Modifier
-                    .padding(horizontal = 20.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
+            var menuExpanded by remember { mutableStateOf(false) }
+
+            Box {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 20.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { menuExpanded = true }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(CircleShape)
@@ -176,21 +185,61 @@ private fun DrawerContent(
                     )
                 }
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = user.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = user.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = when (user.role) {
+                                UserRole.ADMIN           -> "Administrator"
+                                UserRole.PROJECT_MANAGER -> "Manager proiect"
+                                UserRole.ANGAJAT         -> "Angajat"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "Optiuni cont",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
                     )
-                    Text(
-                        text = when (user.role) {
-                            UserRole.ADMIN           -> "Administrator"
-                            UserRole.PROJECT_MANAGER -> "Manager proiect"
-                            UserRole.ANGAJAT         -> "Angajat"
+                }
+
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Setari") },
+                        leadingIcon = {
+                            Icon(Icons.Filled.Settings, contentDescription = null)
                         },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        onClick = {
+                            menuExpanded = false
+                            onCloseDrawer()
+                            navController.navigate(Screen.Settings.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Deconectare") },
+                        leadingIcon = {
+                            Icon(Icons.Filled.Logout, contentDescription = null)
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            MockSession.currentUser = null
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
                     )
                 }
             }
@@ -242,12 +291,10 @@ fun AppNavigationDrawer(
             Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 content()
             }
-        }
-    } else {
-        // Telefon: drawer modal + LocalOpenDrawer furnizat copiilor
-        CompositionLocalProvider(
-            LocalOpenDrawer provides { coroutineScope.launch { drawerState.open() } }
-        ) {
+        } else {
+            // Telefon: drawer modal (slide din stanga)
+            val drawerState = rememberDrawerState(DrawerValue.Closed)
+
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
@@ -258,7 +305,7 @@ fun AppNavigationDrawer(
                             navController = navController,
                             currentRoute  = currentRoute,
                             onItemClick   = {
-                                coroutineScope.launch { drawerState.close() }
+                                // Inchide drawer-ul dupa navigare
                             }
                         )
                     }
