@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
-import com.example.workipi.data.model.Employee
+import com.example.workipi.data.model.MockEmployee
 import com.example.workipi.navigation.Screen
 import com.example.workipi.ui.components.LocalOpenDrawer
 import kotlin.math.ceil
@@ -131,7 +131,7 @@ fun LeaderboardScreen(navController: NavController) {
 @Composable
 private fun TopThreeCard(
     position: Int,
-    employee: Employee,
+    employee: MockEmployee,
     medal: MedalStyle,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
@@ -196,7 +196,7 @@ private fun TopThreeCard(
 
 // ---- Card pentru locurile 4+ ----
 @Composable
-private fun LeaderboardCard(position: Int, employee: Employee, onClick: () -> Unit) {
+private fun LeaderboardCard(position: Int, employee: MockEmployee, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()

@@ -6,3 +6,10 @@ enum class UserRole {
     ANGAJAT,
     CLIENT
 }
+
+fun UserRole.toDbValue(): String = when (this) {
+    UserRole.ADMIN           -> "admin"
+    UserRole.PROJECT_MANAGER -> "inginer"
+    UserRole.ANGAJAT         -> "angajat"
+    UserRole.CLIENT          -> "client"
+}

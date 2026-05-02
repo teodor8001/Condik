@@ -1,6 +1,6 @@
-package com.example.workipi.data.remote.repository
+package com.example.workipi.repository
 
-import com.example.workipi.data.model.Utilizator
+import com.example.workipi.data.model.User
 import com.example.workipi.data.model.UtilizatorInsert
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
@@ -8,26 +8,26 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class UtilizatoriRepository @Inject constructor(
+class UserRepository @Inject constructor(
     private val client: SupabaseClient,
 ) {
 
-    suspend fun findByAuthId(authUserId: String): Utilizator? =
+    suspend fun findByAuthId(authUserId: String): User? =
         client.from(TABLE)
             .select { filter { eq("auth_utilizator_id", authUserId) } }
             .decodeSingleOrNull()
 
-    suspend fun findByPhoneNumber(phoneNumber: String): Utilizator? =
+    suspend fun findByPhoneNumber(phoneNumber: String): User? =
         client.from(TABLE)
             .select { filter { eq("numar_telefon", phoneNumber) } }
             .decodeSingleOrNull()
 
-    suspend fun findByEmail(email: String): Utilizator? =
+    suspend fun findByEmail(email: String): User? =
         client.from(TABLE)
             .select { filter { eq("email", email) } }
             .decodeSingleOrNull()
 
-    suspend fun insert(data: UtilizatorInsert): Utilizator =
+    suspend fun insertAdminAccount(data: UtilizatorInsert): User =
         client.from(TABLE)
             .insert(data) { select() }
             .decodeSingle()

@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
-import com.example.workipi.data.model.Employee
+import com.example.workipi.data.model.MockEmployee
 import com.example.workipi.data.model.EmployeeLevel
 import com.example.workipi.navigation.Screen
 import com.example.workipi.ui.components.LevelBadge
@@ -121,9 +121,7 @@ fun AngajatiScreen(navController: NavController) {
 
                 // Buton adauga angajat nou (genereaza cod invitatie)
                 Button(
-                    onClick = {
-                        // TODO: genereaza cod invitatie pentru angajat nou
-                    },
+                    onClick = { navController.navigate(Screen.AddEmployee.route) },
                     modifier = Modifier.padding(top = 4.dp),
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
@@ -199,7 +197,7 @@ fun AngajatiScreen(navController: NavController) {
 }
 
 @Composable
-private fun AngajatRow(number: Int, employee: Employee, onClick: () -> Unit) {
+private fun AngajatRow(number: Int, employee: MockEmployee, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

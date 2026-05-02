@@ -1,10 +1,10 @@
-package com.example.workipi.ui.screens.createaccount
+package com.example.workipi.viewmodel
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.model.Utilizator
-import com.example.workipi.data.remote.repository.AuthRepository
+import com.example.workipi.data.model.User
+import com.example.workipi.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +23,7 @@ data class CreateAccountUiState(
     val passwordVisible: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val createdUser: Utilizator? = null,
+    val createdUser: User? = null,
 )
 
 @HiltViewModel
@@ -82,7 +82,7 @@ class CreateAccountViewModel @Inject constructor(
                 password = state.password,
             )
                 .onSuccess { utilizator ->
-                    Log.d(TAG, "signUpAdmin reusit: idUtilizator=${utilizator.idUtilizator}")
+                    Log.d(TAG, "signUpAdmin reusit: idUtilizator=${utilizator.idUser}")
                     _uiState.update { it.copy(isLoading = false, createdUser = utilizator) }
                 }
                 .onFailure { e ->

@@ -32,6 +32,7 @@ fun NavGraph(navController: NavHostController) {
             composable(Screen.Pontare.route)     { PontareScreen(navController) }
             composable(Screen.Calitate.route)    { CalitateScreen(navController) }
             composable(Screen.Angajati.route)    { AngajatiScreen(navController) }
+            composable(Screen.AddEmployee.route) { AddEmployeeScreen(navController) }
             composable(
                 route = Screen.EmployeeDetail.route,
                 arguments = listOf(navArgument("employeeId") { type = NavType.StringType })

@@ -1,9 +1,9 @@
-package com.example.workipi.data.remote.repository
+package com.example.workipi.repository
 
 import android.util.Log
 import com.example.workipi.data.model.Firma
 import com.example.workipi.data.model.FirmaInsert
-import com.example.workipi.data.model.Utilizator
+import com.example.workipi.data.model.User
 import com.example.workipi.data.model.UtilizatorInsert
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
@@ -16,10 +16,10 @@ private const val TAG = "AuthRepository"
 @Singleton
 class AuthRepository @Inject constructor(
     private val client: SupabaseClient,
-    private val utilizatoriRepository: UtilizatoriRepository,
+    private val userRepository: UserRepository,
 ) {
 
-    suspend fun signIn(email: String, password: String): Result<Utilizator> = runCatching {
+    suspend fun signIn(email: String, password: String): Result<User> = runCatching {
         client.auth.signInWith(Email) {
             this.email = email.trim()
             this.password = password
@@ -28,7 +28,7 @@ class AuthRepository @Inject constructor(
         val authUserId = client.auth.currentUserOrNull()?.id
             ?: error("Nu s-a putut obtine ID-ul utilizatorului dupa autentificare.")
 
-        utilizatoriRepository.findByAuthId(authUserId)
+        userRepository.findByAuthId(authUserId)
             ?: error("Contul a fost autentificat dar profilul nu a fost gasit. Contacteaza administratorul.")
     }
 
@@ -39,7 +39,7 @@ class AuthRepository @Inject constructor(
         email: String,
         phoneNumber: String,
         password: String,
-    ): Result<Utilizator> = runCatching {
+    ): Result<User> = runCatching {
         Log.d(TAG, "Inceput proces inregistrare admin: firma='$companyName', numePrenume='$fullName', email='$email', telefon='$phoneNumber'")
 
         val companyLabelsStatus: CompanyLabelsStatus = checkIfLabelsAreValid(companyName, email, phoneNumber)
@@ -68,7 +68,7 @@ class AuthRepository @Inject constructor(
                 .decodeSingle<Firma>()
 
             // Daca am ajuns aici, inseamna ca firma a fost creata cu succes. Acum putem crea utilizatorul admin.
-            utilizatoriRepository.insert(
+            userRepository.insertAdminAccount(
                 UtilizatorInsert(
                     numePrenume = fullName.trim(),
                     email = email.trim(),
@@ -90,8 +90,8 @@ class AuthRepository @Inject constructor(
         phoneNumber: String,
     ): CompanyLabelsStatus {
         // TODO: we need to check also if the company name already exists
-        val foundUserByPhone = utilizatoriRepository.findByPhoneNumber(phoneNumber)
-        val foundUserByEmail = utilizatoriRepository.findByEmail(email)
+        val foundUserByPhone = userRepository.findByPhoneNumber(phoneNumber)
+        val foundUserByEmail = userRepository.findByEmail(email)
 
         return when {
             foundUserByPhone != null -> {
@@ -104,6 +104,21 @@ class AuthRepository @Inject constructor(
             }
             else -> CompanyLabelsStatus.VALID
         }
+    }
+
+    fun getCurrentAuthUser(): String {
+        return client.auth.currentUserOrNull()?.id
+            ?: error("Nu esti autentificat")
+    }
+
+    suspend fun getCompanyIdFromAuthUser(): Long {
+        val authId = getCurrentAuthUser()
+        val admin = userRepository.findByAuthId(authId)
+            ?: error("Profil admin negasit")
+        val companyId = admin.idCompany
+            ?: error("Userul nu este intr-o firma")
+
+        return companyId
     }
 
     private enum class CompanyLabelsStatus {

@@ -258,7 +258,8 @@ fun AppNavigationDrawer(
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute   = backStackEntry?.destination?.route
-    val showDrawer     = currentRoute != null && currentRoute != Screen.Login.route
+    val authRoutes     = setOf(Screen.Login.route, Screen.CreateAccount.route)
+    val showDrawer     = currentRoute != null && currentRoute !in authRoutes
 
     if (!showDrawer) {
         content()
