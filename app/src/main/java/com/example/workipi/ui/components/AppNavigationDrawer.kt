@@ -195,8 +195,9 @@ private fun DrawerContent(
                         Text(
                             text = when (user.role) {
                                 UserRole.ADMIN           -> "Administrator"
-                                UserRole.PROJECT_MANAGER -> "Manager proiect"
+                                UserRole.PROJECT_MANAGER -> "Inginer"
                                 UserRole.ANGAJAT         -> "Angajat"
+                                UserRole.CLIENT          -> "Client"
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant

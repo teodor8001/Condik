@@ -1,0 +1,38 @@
+package com.example.workipi.data.remote.repository
+
+import com.example.workipi.data.model.Utilizator
+import com.example.workipi.data.model.UtilizatorInsert
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class UtilizatoriRepository @Inject constructor(
+    private val client: SupabaseClient,
+) {
+
+    suspend fun findByAuthId(authUserId: String): Utilizator? =
+        client.from(TABLE)
+            .select { filter { eq("auth_utilizator_id", authUserId) } }
+            .decodeSingleOrNull()
+
+    suspend fun findByPhoneNumber(phoneNumber: String): Utilizator? =
+        client.from(TABLE)
+            .select { filter { eq("numar_telefon", phoneNumber) } }
+            .decodeSingleOrNull()
+
+    suspend fun findByEmail(email: String): Utilizator? =
+        client.from(TABLE)
+            .select { filter { eq("email", email) } }
+            .decodeSingleOrNull()
+
+    suspend fun insert(data: UtilizatorInsert): Utilizator =
+        client.from(TABLE)
+            .insert(data) { select() }
+            .decodeSingle()
+
+    companion object {
+        private const val TABLE = "utilizatori"
+    }
+}
