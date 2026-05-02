@@ -14,6 +14,7 @@ fun HomeScreen(navController: NavController) {
     when (user.role) {
         UserRole.ADMIN,
         UserRole.PROJECT_MANAGER -> AdminHomeScreen(navController)
-        UserRole.ANGAJAT         -> EmployeeHomeScreen(navController)
+        UserRole.ANGAJAT,
+        UserRole.CLIENT          -> EmployeeHomeScreen(navController)
     }
 }

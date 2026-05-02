@@ -16,8 +16,9 @@ fun NavGraph(navController: NavHostController) {
             navController    = navController,
             startDestination = Screen.Login.route
         ) {
-            composable(Screen.Login.route)       { LoginScreen(navController) }
-            composable(Screen.Home.route)        { HomeScreen(navController) }
+            composable(Screen.Login.route)         { LoginScreen(navController) }
+            composable(Screen.CreateAccount.route) { CreateAccountScreen(navController) }
+            composable(Screen.Home.route)          { HomeScreen(navController) }
             composable(Screen.Proiecte.route)    { ProiecteScreen(navController) }
             composable(
                 route = Screen.ProjectDetail.route,
