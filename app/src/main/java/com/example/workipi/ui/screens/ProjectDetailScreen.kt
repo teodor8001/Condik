@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
-import com.example.workipi.data.model.Employee
+import com.example.workipi.data.model.MockEmployee
 import com.example.workipi.data.model.ProjectTask
 import com.example.workipi.ui.components.LevelBadge
 import com.example.workipi.ui.components.LocalOpenDrawer
@@ -304,7 +304,7 @@ private fun TaskRow(task: ProjectTask) {
 
 // ---- Sectiunea Echipa ----
 @Composable
-private fun EchipaSection(employees: List<Employee>) {
+private fun EchipaSection(employees: List<MockEmployee>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -333,7 +333,7 @@ private fun EchipaSection(employees: List<Employee>) {
 }
 
 @Composable
-private fun EmployeeRow(employee: Employee) {
+private fun EmployeeRow(employee: MockEmployee) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,

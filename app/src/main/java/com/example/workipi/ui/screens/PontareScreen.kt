@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
 import com.example.workipi.data.mock.MockSession
-import com.example.workipi.data.model.Employee
+import com.example.workipi.data.model.MockEmployee
 import com.example.workipi.data.model.Project
 import com.example.workipi.data.model.Skill
 import com.example.workipi.data.model.UserRole
@@ -68,7 +68,7 @@ fun PontareScreen(navController: NavController) {
         return
     }
 
-    var selectedEmployee by remember { mutableStateOf<Employee?>(null) }
+    var selectedEmployee by remember { mutableStateOf<MockEmployee?>(null) }
     var selectedProject  by remember { mutableStateOf<Project?>(null) }
     var skillEntries     by remember { mutableStateOf(listOf<SkillEntry>()) }
     var submitSuccess    by remember { mutableStateOf(false) }

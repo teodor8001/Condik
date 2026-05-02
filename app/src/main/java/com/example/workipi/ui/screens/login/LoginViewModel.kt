@@ -3,8 +3,8 @@ package com.example.workipi.ui.screens.login
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.model.Utilizator
-import com.example.workipi.data.remote.repository.AuthRepository
+import com.example.workipi.data.model.User
+import com.example.workipi.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +19,7 @@ data class LoginUiState(
     val passwordVisible: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val signedInUser: Utilizator? = null,
+    val signedInUser: User? = null,
 )
 
 @HiltViewModel
@@ -57,7 +57,7 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             authRepository.signIn(state.email, state.password)
                 .onSuccess { utilizator ->
-                    Log.d(TAG, "signIn reusit: idUtilizator=${utilizator.idUtilizator}")
+                    Log.d(TAG, "signIn reusit: idUtilizator=${utilizator.idUser}")
                     _uiState.update { it.copy(isLoading = false, signedInUser = utilizator) }
                 }
                 .onFailure { e ->

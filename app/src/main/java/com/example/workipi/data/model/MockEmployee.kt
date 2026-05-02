@@ -1,6 +1,6 @@
 package com.example.workipi.data.model
 
-data class Employee(
+data class MockEmployee(
     val id: String,
     val name: String,
     val age: Int,

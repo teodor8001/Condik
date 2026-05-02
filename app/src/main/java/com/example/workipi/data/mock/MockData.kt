@@ -9,77 +9,77 @@ object MockData {
 
     // ---- Useri (autentificare) ----
     val users = listOf(
-        User("1", "Ion Popescu",    "admin@workipi.com",   "0721000001", UserRole.ADMIN),
-        User("2", "Maria Ionescu",  "manager@workipi.com", "0721000002", UserRole.PROJECT_MANAGER),
-        User("3", "Gheorghe Marin", "angajat@workipi.com", "0721000003", UserRole.ANGAJAT)
+        MockUser("1", "Ion Popescu",    "admin@workipi.com",   "0721000001", UserRole.ADMIN),
+        MockUser("2", "Maria Ionescu",  "manager@workipi.com", "0721000002", UserRole.PROJECT_MANAGER),
+        MockUser("3", "Gheorghe Marin", "angajat@workipi.com", "0721000003", UserRole.ANGAJAT)
     )
 
     // ---- Angajati (muncitori) ----
     val employees = listOf(
-        Employee(
+        MockEmployee(
             id = "e1", name = "Constantin Vasile", age = 42,
             email = "c.vasile@workipi.ro", phone = "0721 111 001",
             primarySpecialty = "Betonist",
             specialties = listOf("Betonare", "Cofraje", "Armaturi", "Finisaje beton"),
             level = EmployeeLevel.LEAD, points = 4850
         ),
-        Employee(
+        MockEmployee(
             id = "e2", name = "Popa Gheorghe", age = 36,
             email = "g.popa@workipi.ro", phone = "0721 111 002",
             primarySpecialty = "Zidar",
             specialties = listOf("Zidarie BCA", "Zidarie caramida", "Tencuiala"),
             level = EmployeeLevel.SENIOR, points = 3920
         ),
-        Employee(
+        MockEmployee(
             id = "e3", name = "Dobre Mihai", age = 28,
             email = "m.dobre@workipi.ro", phone = "0721 111 003",
             primarySpecialty = "Zugrav",
             specialties = listOf("Zugravit interior", "Vopsit fatade", "Glet"),
             level = EmployeeLevel.MID, points = 2710
         ),
-        Employee(
+        MockEmployee(
             id = "e4", name = "Stan Alexandru", age = 39,
             email = "a.stan@workipi.ro", phone = "0721 111 004",
             primarySpecialty = "Fierar Betonist",
             specialties = listOf("Armaturi", "Sudura", "Cofraje metalice", "Betonare"),
             level = EmployeeLevel.SENIOR, points = 4430
         ),
-        Employee(
+        MockEmployee(
             id = "e5", name = "Ionescu Florin", age = 33,
             email = "f.ionescu@workipi.ro", phone = "0721 111 005",
             primarySpecialty = "Instalator Sanitar",
             specialties = listOf("Instalatii sanitare", "Instalatii termice", "Montaj calorifere"),
             level = EmployeeLevel.MID, points = 2190
         ),
-        Employee(
+        MockEmployee(
             id = "e6", name = "Marin Cristian", age = 31,
             email = "c.marin@workipi.ro", phone = "0721 111 006",
             primarySpecialty = "Electrician",
             specialties = listOf("Instalatii electrice", "Tablouri electrice", "Automatizari"),
             level = EmployeeLevel.MID, points = 1870
         ),
-        Employee(
+        MockEmployee(
             id = "e7", name = "Oprea Radu", age = 22,
             email = "r.oprea@workipi.ro", phone = "0721 111 007",
             primarySpecialty = "Zidar",
             specialties = listOf("Zidarie BCA", "Tencuiala"),
             level = EmployeeLevel.JUNIOR, points = 980
         ),
-        Employee(
+        MockEmployee(
             id = "e8", name = "Dumitrescu Andrei", age = 35,
             email = "a.dumitrescu@workipi.ro", phone = "0721 111 008",
             primarySpecialty = "Tencuitor",
             specialties = listOf("Tencuiala manuala", "Tencuiala mecanizata", "Glet", "Zugravit"),
             level = EmployeeLevel.SENIOR, points = 3540
         ),
-        Employee(
+        MockEmployee(
             id = "e9", name = "Luca Bogdan", age = 26,
             email = "b.luca@workipi.ro", phone = "0721 111 009",
             primarySpecialty = "Betonist",
             specialties = listOf("Betonare", "Cofraje"),
             level = EmployeeLevel.JUNIOR, points = 1240
         ),
-        Employee(
+        MockEmployee(
             id = "e10", name = "Neagu Daniel", age = 30,
             email = "d.neagu@workipi.ro", phone = "0721 111 010",
             primarySpecialty = "Fierar Betonist",
@@ -203,7 +203,7 @@ object MockData {
         Skill("s15", "Finisaje interioare",   MeasureUnit.MP, pricePerUnit = 35.0,  pointsPerUnit = 14.0)
     )
 
-    fun login(identifier: String, password: String): User? {
+    fun login(identifier: String, password: String): MockUser? {
         if (password.length < 4) return null
         return users.find {
             it.email.equals(identifier.trim(), ignoreCase = true) ||
@@ -213,11 +213,11 @@ object MockData {
 
     fun getProjectById(id: String): Project? = projects.find { it.id == id }
 
-    fun getEmployeesByIds(ids: List<String>): List<Employee> =
+    fun getEmployeesByIds(ids: List<String>): List<MockEmployee> =
         employees.filter { it.id in ids }
 }
 
 // Sesiunea curenta — va fi inlocuita cu Supabase Auth
 object MockSession {
-    var currentUser: User? = null
+    var currentUser: MockUser? = null
 }
