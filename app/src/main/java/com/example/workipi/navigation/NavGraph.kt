@@ -19,7 +19,7 @@ fun NavGraph(navController: NavHostController) {
             composable(Screen.Login.route)         { LoginScreen(navController) }
             composable(Screen.CreateAccount.route) { CreateAccountScreen(navController) }
             composable(Screen.Home.route)          { HomeScreen(navController) }
-            composable(Screen.Proiecte.route)    { ProiecteScreen(navController) }
+            composable(Screen.Proiecte.route)    { ProjectsScreen(navController) }
             composable(
                 route = Screen.ProjectDetail.route,
                 arguments = listOf(navArgument("projectId") { type = NavType.StringType })

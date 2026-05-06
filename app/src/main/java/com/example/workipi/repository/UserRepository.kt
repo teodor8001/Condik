@@ -27,7 +27,7 @@ class UserRepository @Inject constructor(
             .select { filter { eq("email", email) } }
             .decodeSingleOrNull()
 
-    suspend fun insertAdminAccount(data: UtilizatorInsert): User =
+    suspend fun insertUserAccount(data: UtilizatorInsert): User =
         client.from(TABLE)
             .insert(data) { select() }
             .decodeSingle()

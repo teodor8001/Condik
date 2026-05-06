@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.TrendingUp
@@ -27,7 +26,7 @@ import kotlin.math.roundToInt
 @Composable
 fun AdminHomeScreen(navController: NavController) {
     val user       = MockSession.currentUser ?: return
-    val projects   = MockData.projects
+    val projects   = MockData.mockProjects
     val openDrawer = LocalOpenDrawer.current
 
     // ---- Metrici calculate ----

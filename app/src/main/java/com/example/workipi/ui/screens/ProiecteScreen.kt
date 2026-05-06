@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
-import com.example.workipi.data.model.Project
+import com.example.workipi.data.model.MockProject
 import com.example.workipi.data.model.ProjectStatus
 import com.example.workipi.navigation.Screen
 import com.example.workipi.ui.components.LocalOpenDrawer
@@ -29,8 +29,8 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
-fun ProiecteScreen(navController: NavController) {
-    val projects   = MockData.projects
+fun ProjectsScreen(navController: NavController) {
+    val projects   = MockData.mockProjects
     val openDrawer = LocalOpenDrawer.current
 
     BoxWithConstraints(
@@ -87,7 +87,7 @@ fun ProiecteScreen(navController: NavController) {
             ) {
                 items(projects) { project ->
                     ProjectCard(
-                        project = project,
+                        mockProject = project,
                         onClick = {
                             navController.navigate(
                                 Screen.ProjectDetail.createRoute(project.id)
@@ -101,7 +101,7 @@ fun ProiecteScreen(navController: NavController) {
 }
 
 @Composable
-private fun ProjectCard(project: Project, onClick: () -> Unit) {
+private fun ProjectCard(mockProject: MockProject, onClick: () -> Unit) {
     val ronFormatter = NumberFormat.getNumberInstance(Locale("ro", "RO")).apply {
         maximumFractionDigits = 0
     }
@@ -126,14 +126,14 @@ private fun ProjectCard(project: Project, onClick: () -> Unit) {
                 verticalAlignment = Alignment.Top
             ) {
                 Text(
-                    text = project.name,
+                    text = mockProject.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                StatusBadge(status = project.status)
+                StatusBadge(status = mockProject.status)
             }
 
             // Date
@@ -148,7 +148,7 @@ private fun ProjectCard(project: Project, onClick: () -> Unit) {
                     modifier = Modifier.size(14.dp)
                 )
                 Text(
-                    text = "${project.startDate}  →  ${project.endDate}",
+                    text = "${mockProject.startDate}  →  ${mockProject.endDate}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -166,14 +166,14 @@ private fun ProjectCard(project: Project, onClick: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "${(project.progress * 100).roundToInt()}%",
+                        text = "${(mockProject.progress * 100).roundToInt()}%",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
                 LinearProgressIndicator(
-                    progress = { project.progress },
+                    progress = { mockProject.progress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
@@ -202,7 +202,7 @@ private fun ProjectCard(project: Project, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "${ronFormatter.format(project.contractValue)} RON",
+                    text = "${ronFormatter.format(mockProject.contractValue)} RON",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground

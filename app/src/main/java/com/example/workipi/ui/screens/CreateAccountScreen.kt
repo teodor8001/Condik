@@ -31,8 +31,9 @@ import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockSession
 import com.example.workipi.data.model.toUser
 import com.example.workipi.navigation.Screen
-import com.example.workipi.viewmodel.CreateAccountUiState
-import com.example.workipi.viewmodel.CreateAccountViewModel
+import com.example.workipi.viewmodel.CreateAdminAccountUiState
+import com.example.workipi.viewmodel.CreateAccountAdminViewModel
+import com.example.workipi.viewmodel.CreateAccountRegularViewModel
 
 private enum class CreateAccountMode(val label: String) {
     NEW_COMPANY("Firma noua"),
@@ -43,26 +44,33 @@ private enum class CreateAccountMode(val label: String) {
 @Composable
 fun CreateAccountScreen(
     navController: NavController,
-    viewModel: CreateAccountViewModel = hiltViewModel(),
+    createAccountAdminViewModel: CreateAccountAdminViewModel = hiltViewModel(),
+    createAccountRegularViewModel: CreateAccountRegularViewModel =  hiltViewModel()
 ) {
     val focusManager = LocalFocusManager.current
-    val state by viewModel.uiState.collectAsState()
+    val adminState by createAccountAdminViewModel.uiState.collectAsState()
+    val regularState by createAccountRegularViewModel.uiState.collectAsState()
 
     var mode by remember { mutableStateOf(CreateAccountMode.NEW_COMPANY) }
 
-    // State local pentru ramura cu cod invitatie (UI only — logica vine ulterior)
-    var inviteCode by remember { mutableStateOf("") }
-    var invitePassword by remember { mutableStateOf("") }
-    var inviteConfirmPassword by remember { mutableStateOf("") }
-    var invitePasswordVisible by remember { mutableStateOf(false) }
-    var inviteErrorMessage by remember { mutableStateOf("") }
-
-    LaunchedEffect(state.createdUser) {
-        val utilizator = state.createdUser ?: return@LaunchedEffect
+    // This is for admin created account
+    LaunchedEffect(adminState.createdUser) {
+        val utilizator = adminState.createdUser ?: return@LaunchedEffect
         MockSession.currentUser = utilizator.toUser()
-        viewModel.consumeCreatedUser()
+        createAccountAdminViewModel.consumeCreatedUser()
         navController.navigate(Screen.Home.route) {
             popUpTo(Screen.Login.route) { inclusive = true }
+        }
+    }
+
+    LaunchedEffect(regularState.createdUser) {
+        val user = regularState.createdUser ?: return@LaunchedEffect
+        MockSession.currentUser = user.toUser()
+        createAccountRegularViewModel.consumeCreatedUser()
+        navController.navigate(Screen.Home.route) {
+            popUpTo(Screen.Login.route) {
+                inclusive = true
+            }
         }
     }
 
@@ -127,24 +135,22 @@ fun CreateAccountScreen(
 
             when (mode) {
                 CreateAccountMode.NEW_COMPANY -> NewCompanyCard(
-                    state = state,
-                    viewModel = viewModel,
+                    state = adminState,
+                    createAccountAdminViewModel = createAccountAdminViewModel,
                     focusManager = focusManager,
                 )
                 CreateAccountMode.INVITE_CODE -> InviteCodeCard(
-                    code = inviteCode,
-                    onCodeChange = { inviteCode = it; inviteErrorMessage = "" },
-                    password = invitePassword,
-                    onPasswordChange = { invitePassword = it; inviteErrorMessage = "" },
-                    confirmPassword = inviteConfirmPassword,
-                    onConfirmPasswordChange = { inviteConfirmPassword = it; inviteErrorMessage = "" },
-                    passwordVisible = invitePasswordVisible,
-                    onTogglePasswordVisibility = { invitePasswordVisible = !invitePasswordVisible },
-                    errorMessage = inviteErrorMessage,
+                    code = regularState.invitationCode,
+                    onCodeChange = createAccountRegularViewModel::onInvitationCodeChange,
+                    password = regularState.password,
+                    onPasswordChange = createAccountRegularViewModel::onPasswordChange,
+                    confirmPassword = regularState.confirmPassword,
+                    onConfirmPasswordChange = createAccountRegularViewModel::onConfirmPassword,
+                    passwordVisible = regularState.passwordVisible,
+                    onTogglePasswordVisibility = createAccountRegularViewModel::togglePasswordVisibility,
+                    errorMessage = regularState.errorMessage.orEmpty(),
                     focusManager = focusManager,
-                    onSubmit = {
-                        // TODO: valideaza codul + creeaza contul auth + leaga-l de utilizatorul existent
-                    },
+                    onSubmit = createAccountRegularViewModel::submitRegularAccount,
                 )
             }
         }
@@ -153,8 +159,8 @@ fun CreateAccountScreen(
 
 @Composable
 private fun NewCompanyCard(
-    state: CreateAccountUiState,
-    viewModel: CreateAccountViewModel,
+    state: CreateAdminAccountUiState,
+    createAccountAdminViewModel: CreateAccountAdminViewModel,
     focusManager: FocusManager,
 ) {
     Card(
@@ -176,7 +182,7 @@ private fun NewCompanyCard(
 
             OutlinedTextField(
                 value = state.denumireFirma,
-                onValueChange = viewModel::onDenumireFirmaChange,
+                onValueChange = createAccountAdminViewModel::onDenumireFirmaChange,
                 label = { Text("Denumire firma") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -187,7 +193,7 @@ private fun NewCompanyCard(
 
             OutlinedTextField(
                 value = state.numePrenume,
-                onValueChange = viewModel::onNumePrenumeChange,
+                onValueChange = createAccountAdminViewModel::onNumePrenumeChange,
                 label = { Text("Nume si prenume") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -198,7 +204,7 @@ private fun NewCompanyCard(
 
             OutlinedTextField(
                 value = state.email,
-                onValueChange = viewModel::onEmailChange,
+                onValueChange = createAccountAdminViewModel::onEmailChange,
                 label = { Text("Email") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -212,7 +218,7 @@ private fun NewCompanyCard(
 
             OutlinedTextField(
                 value = state.telefon,
-                onValueChange = viewModel::onTelefonChange,
+                onValueChange = createAccountAdminViewModel::onTelefonChange,
                 label = { Text("Numar de telefon") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -226,7 +232,7 @@ private fun NewCompanyCard(
 
             OutlinedTextField(
                 value = state.password,
-                onValueChange = viewModel::onPasswordChange,
+                onValueChange = createAccountAdminViewModel::onPasswordChange,
                 label = { Text("Parola") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -237,7 +243,7 @@ private fun NewCompanyCard(
                 ),
                 keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                 trailingIcon = {
-                    IconButton(onClick = viewModel::togglePasswordVisibility) {
+                    IconButton(onClick = createAccountAdminViewModel::togglePasswordVisibility) {
                         Icon(
                             imageVector = if (state.passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                             contentDescription = if (state.passwordVisible) "Ascunde parola" else "Arata parola",
@@ -250,7 +256,7 @@ private fun NewCompanyCard(
 
             OutlinedTextField(
                 value = state.confirmPassword,
-                onValueChange = viewModel::onConfirmPasswordChange,
+                onValueChange = createAccountAdminViewModel::onConfirmPasswordChange,
                 label = { Text("Confirma parola") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -261,7 +267,7 @@ private fun NewCompanyCard(
                 ),
                 keyboardActions = KeyboardActions(onDone = {
                     focusManager.clearFocus()
-                    viewModel.submit()
+                    createAccountAdminViewModel.submitAdminAccount()
                 }),
                 shape = RoundedCornerShape(10.dp),
             )
@@ -277,7 +283,7 @@ private fun NewCompanyCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             Button(
-                onClick = { viewModel.submit() },
+                onClick = { createAccountAdminViewModel.submitAdminAccount() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),

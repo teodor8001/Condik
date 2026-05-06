@@ -15,4 +15,13 @@ class InvitationCodeRepository @Inject constructor(
         client.from(TABLE)
             .insert(data) { select() }
             .decodeSingle()
+
+    suspend fun getCodeByName(code: String): InvitationCode? =
+        client.from(TABLE)
+            .select {
+                filter { eq("cod", code) }
+            }
+            .decodeSingleOrNull()
+
+
 }
