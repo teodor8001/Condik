@@ -89,8 +89,8 @@ object MockData {
     )
 
     // ---- Proiecte ----
-    val projects = listOf(
-        Project(
+    val mockProjects = listOf(
+        MockProject(
             id             = "p1",
             name           = "Bloc Rezidential Sector 3",
             status         = ProjectStatus.ACTIV,
@@ -114,7 +114,7 @@ object MockData {
             ),
             employeeIds = listOf("e1", "e2", "e3", "e4")
         ),
-        Project(
+        MockProject(
             id             = "p2",
             name           = "Pod Autostrada A1",
             status         = ProjectStatus.INTARZIAT,
@@ -135,7 +135,7 @@ object MockData {
             ),
             employeeIds = listOf("e1", "e4", "e9", "e10", "e5")
         ),
-        Project(
+        MockProject(
             id             = "p3",
             name           = "Hala Industriala Ploiesti",
             status         = ProjectStatus.ACTIV,
@@ -159,7 +159,7 @@ object MockData {
             ),
             employeeIds = listOf("e2", "e3", "e6", "e8")
         ),
-        Project(
+        MockProject(
             id             = "p4",
             name           = "Ansamblu Rezidential Pipera",
             status         = ProjectStatus.ACTIV,
@@ -211,7 +211,7 @@ object MockData {
         }
     }
 
-    fun getProjectById(id: String): Project? = projects.find { it.id == id }
+    fun getProjectById(id: String): MockProject? = mockProjects.find { it.id == id }
 
     fun getEmployeesByIds(ids: List<String>): List<MockEmployee> =
         employees.filter { it.id in ids }

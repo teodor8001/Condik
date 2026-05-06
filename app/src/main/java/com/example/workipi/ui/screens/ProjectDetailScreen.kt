@@ -133,7 +133,7 @@ fun ProjectDetailScreen(navController: NavController, projectId: String?) {
 
 // ---- Card sumar proiect ----
 @Composable
-private fun ProjectInfoCard(project: com.example.workipi.data.model.Project, ronFormatter: NumberFormat) {
+private fun ProjectInfoCard(mockProject: com.example.workipi.data.model.MockProject, ronFormatter: NumberFormat) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -155,7 +155,7 @@ private fun ProjectInfoCard(project: com.example.workipi.data.model.Project, ron
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                StatusBadge(status = project.status)
+                StatusBadge(status = mockProject.status)
             }
 
             // Progres general
@@ -170,14 +170,14 @@ private fun ProjectInfoCard(project: com.example.workipi.data.model.Project, ron
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "${(project.progress * 100).roundToInt()}%",
+                        text = "${(mockProject.progress * 100).roundToInt()}%",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
                 LinearProgressIndicator(
-                    progress = { project.progress },
+                    progress = { mockProject.progress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(10.dp)
@@ -201,7 +201,7 @@ private fun ProjectInfoCard(project: com.example.workipi.data.model.Project, ron
                     modifier = Modifier.size(14.dp)
                 )
                 Text(
-                    text = "${project.startDate}  →  ${project.endDate}",
+                    text = "${mockProject.startDate}  →  ${mockProject.endDate}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -224,7 +224,7 @@ private fun ProjectInfoCard(project: com.example.workipi.data.model.Project, ron
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "${ronFormatter.format(project.contractValue)} RON",
+                    text = "${ronFormatter.format(mockProject.contractValue)} RON",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground

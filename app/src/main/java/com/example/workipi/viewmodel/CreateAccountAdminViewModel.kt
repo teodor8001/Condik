@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.model.User
 import com.example.workipi.repository.AuthRepository
+import com.example.workipi.repository.InvitationCodeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class CreateAccountUiState(
+data class CreateAdminAccountUiState(
     val denumireFirma: String = "",
     val numePrenume: String = "",
     val email: String = "",
@@ -27,12 +28,12 @@ data class CreateAccountUiState(
 )
 
 @HiltViewModel
-class CreateAccountViewModel @Inject constructor(
+class CreateAccountAdminViewModel @Inject constructor(
     private val authRepository: AuthRepository,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(CreateAccountUiState())
-    val uiState: StateFlow<CreateAccountUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(CreateAdminAccountUiState())
+    val uiState: StateFlow<CreateAdminAccountUiState> = _uiState.asStateFlow()
 
     fun onDenumireFirmaChange(value: String) =
         _uiState.update { it.copy(denumireFirma = value, errorMessage = null) }
@@ -55,7 +56,7 @@ class CreateAccountViewModel @Inject constructor(
     fun togglePasswordVisibility() =
         _uiState.update { it.copy(passwordVisible = !it.passwordVisible) }
 
-    fun submit() {
+    fun submitAdminAccount() {
         val state = _uiState.value
         val error = when {
             state.denumireFirma.isBlank() -> "Introdu denumirea firmei."
@@ -98,10 +99,12 @@ class CreateAccountViewModel @Inject constructor(
     }
 
     fun consumeCreatedUser() {
-        _uiState.update { it.copy(createdUser = null) }
+        _uiState.update {it.copy(createdUser = null)}
     }
 
+
+
     companion object {
-        private const val TAG = "CreateAccountVM"
+        private const val TAG = "CreateAccountAdminViewModel"
     }
 }

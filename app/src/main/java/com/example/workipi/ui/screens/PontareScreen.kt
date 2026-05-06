@@ -22,7 +22,7 @@ import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockData
 import com.example.workipi.data.mock.MockSession
 import com.example.workipi.data.model.MockEmployee
-import com.example.workipi.data.model.Project
+import com.example.workipi.data.model.MockProject
 import com.example.workipi.data.model.Skill
 import com.example.workipi.data.model.UserRole
 import com.example.workipi.ui.components.LocalOpenDrawer
@@ -69,13 +69,13 @@ fun PontareScreen(navController: NavController) {
     }
 
     var selectedEmployee by remember { mutableStateOf<MockEmployee?>(null) }
-    var selectedProject  by remember { mutableStateOf<Project?>(null) }
+    var selectedMockProject  by remember { mutableStateOf<MockProject?>(null) }
     var skillEntries     by remember { mutableStateOf(listOf<SkillEntry>()) }
     var submitSuccess    by remember { mutableStateOf(false) }
 
     val totalPoints = skillEntries.sumOf { it.points }
     val canSubmit   = selectedEmployee != null &&
-                      selectedProject  != null &&
+                      selectedMockProject  != null &&
                       skillEntries.isNotEmpty() &&
                       skillEntries.all { it.skill != null && (it.quantity.toDoubleOrNull() ?: 0.0) > 0.0 }
 
@@ -149,10 +149,10 @@ fun PontareScreen(navController: NavController) {
                     PontareDropdown(
                         label       = "Proiect",
                         placeholder = "Selecteaza proiect",
-                        selected    = selectedProject?.name,
-                        options     = MockData.projects.map { it.name },
+                        selected    = selectedMockProject?.name,
+                        options     = MockData.mockProjects.map { it.name },
                         onSelect    = { name ->
-                            selectedProject = MockData.projects.find { it.name == name }
+                            selectedMockProject = MockData.mockProjects.find { it.name == name }
                             submitSuccess = false
                         }
                     )
@@ -223,7 +223,7 @@ fun PontareScreen(navController: NavController) {
                                 // Mock — va fi inlocuit cu Supabase
                                 submitSuccess = true
                                 selectedEmployee = null
-                                selectedProject  = null
+                                selectedMockProject  = null
                                 skillEntries     = listOf()
                             }
                         },

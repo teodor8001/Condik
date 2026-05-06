@@ -17,6 +17,7 @@ private const val TAG = "AuthRepository"
 class AuthRepository @Inject constructor(
     private val client: SupabaseClient,
     private val userRepository: UserRepository,
+    private val codeRepository: InvitationCodeRepository
 ) {
 
     suspend fun signIn(email: String, password: String): Result<User> = runCatching {
@@ -59,16 +60,14 @@ class AuthRepository @Inject constructor(
             this.password = password
         }
 
-        val authUserId = client.auth.currentUserOrNull()?.id
-            ?: error("Cont creat dar nu s-a putut auto-autentifica. Verifica setarea 'Confirm email' din Supabase.")
-
+        val authUserId = getCurrentUserId()
         try {
             val firma = client.from("firme")
                 .insert(FirmaInsert(denumire = companyName.trim())) { select() }
                 .decodeSingle<Firma>()
 
             // Daca am ajuns aici, inseamna ca firma a fost creata cu succes. Acum putem crea utilizatorul admin.
-            userRepository.insertAdminAccount(
+            userRepository.insertUserAccount(
                 UtilizatorInsert(
                     numePrenume = fullName.trim(),
                     email = email.trim(),
@@ -84,6 +83,55 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    /**
+     * This method is inserting the employee into the database
+     * [role] - can be Employee or Engineer
+     */
+    suspend fun signUpEmployee(
+        fullName: String,
+        phoneNumber: String,
+        email: String,
+        role: String,
+        companyId: Long,
+        password: String
+    ): Result<User> = runCatching {
+        // TODO: Maybe I will have to have a necessary parameter the salary
+        Log.d(TAG, "Inceput proces de inregistrare a angajatului $fullName")
+
+        client.auth.signUpWith(Email) {
+            this.email = email.trim()
+            this.password = password
+        }
+
+        val authUserId = getCurrentUserId()
+
+        try {
+            userRepository.insertUserAccount(
+                UtilizatorInsert(
+                    numePrenume = fullName.trim(),
+                    email = email.trim(),
+                    numarTelefon = phoneNumber,
+                    rol = role,
+                    idFirma = companyId,
+                    authUtilizatorId = authUserId,
+                )
+            )
+        } catch (e: Throwable) {
+            runCatching { client.auth.signOut() }
+            throw e
+        }
+
+    }
+
+    fun getCurrentUserId(): String {
+        return client.auth.currentUserOrNull()?.id ?: error("Cont creat dar nu s-a putut auto-autentifica.")
+    }
+
+
+    /**
+     * We are cheching if the phone number and the email is valid and not
+     * already existing in the database
+     */
     private suspend fun checkIfLabelsAreValid(
         companyName: String,
         email: String,
