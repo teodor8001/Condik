@@ -13,6 +13,7 @@ data class InvitationCodeInsert(
     @SerialName("numar_telefon") val phoneNumber: String,
     @SerialName("nume_complet") val fullName: String,
     @SerialName("data_expirare") val expirationDate: Instant,
+    @SerialName("salariu") val salary: Float? = null,
 )
 
 @Serializable
@@ -27,4 +28,5 @@ data class InvitationCode(
     @SerialName("este_folosit") val isUsed: Boolean,
     @SerialName("data_expirare") val expirationDate: Instant,
     @SerialName("created_at") val createdAt: Instant,
+    @SerialName("salariu") val salary: Float? = null,
 )

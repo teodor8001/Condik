@@ -22,4 +22,5 @@ data class UtilizatorInsert(
     @SerialName("rol") val rol: String,
     @SerialName("id_firma") val idFirma: Long,
     @SerialName("auth_utilizator_id") val authUtilizatorId: String,
+    @SerialName("salariu") val salariu: Float? = null,
 )

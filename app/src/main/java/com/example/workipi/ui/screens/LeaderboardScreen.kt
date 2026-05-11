@@ -97,7 +97,7 @@ fun LeaderboardScreen(navController: NavController) {
                         modifier = Modifier.weight(1f),
                         onClick  = {
                             navController.navigate(
-                                Screen.EmployeeDetail.createRoute(topEmployees[empIndex].id)
+                                Screen.EmployeeDetail.createRoute(topEmployees[empIndex].id.toLongOrNull() ?: 0L)
                             )
                         }
                     )
@@ -117,7 +117,7 @@ fun LeaderboardScreen(navController: NavController) {
                         employee = employee,
                         onClick  = {
                             navController.navigate(
-                                Screen.EmployeeDetail.createRoute(employee.id)
+                                Screen.EmployeeDetail.createRoute(employee.id.toLongOrNull() ?: 0L)
                             )
                         }
                     )

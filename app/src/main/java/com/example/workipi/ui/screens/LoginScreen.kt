@@ -1,19 +1,31 @@
 package com.example.workipi.ui.screens
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Engineering
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -46,39 +58,100 @@ fun LoginScreen(
         }
     }
 
+    // Animatie de intrare — trigger o data
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
+    val headerAlpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(500, easing = FastOutSlowInEasing),
+        label = "header-alpha",
+    )
+    val headerOffsetY by animateDpAsState(
+        targetValue = if (visible) 0.dp else (-24).dp,
+        animationSpec = tween(500, easing = FastOutSlowInEasing),
+        label = "header-offset",
+    )
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(600, delayMillis = 150, easing = FastOutSlowInEasing),
+        label = "card-alpha",
+    )
+    val cardOffsetY by animateDpAsState(
+        targetValue = if (visible) 0.dp else 32.dp,
+        animationSpec = tween(600, delayMillis = 150, easing = FastOutSlowInEasing),
+        label = "card-offset",
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 28.dp),
-        contentAlignment = Alignment.Center
     ) {
+        // Decor de fundal — gradient + cercuri plutitoare + val
+        WaveDecor(modifier = Modifier.fillMaxSize())
+
+        // Continut centrat cu lățime maxima pe tableta
         Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(0.dp)
+            verticalArrangement = Arrangement.Center,
         ) {
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 420.dp)
+                    .alpha(headerAlpha)
+                    .offset(y = headerOffsetY),
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Icon brand cu fundal circular
+                    Box(
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Engineering,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
 
-            Text(
-                text = "WorkIPI",
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Management santier",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.sp
-            )
+                    Spacer(modifier = Modifier.height(14.dp))
 
-            Spacer(modifier = Modifier.height(48.dp))
+                    Text(
+                        text = "WorkIPI",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Management santier",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.sp,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(36.dp))
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .widthIn(max = 420.dp)
+                    .fillMaxWidth()
+                    .alpha(cardAlpha)
+                    .offset(y = cardOffsetY),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -203,5 +276,63 @@ fun LoginScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WaveDecor(modifier: Modifier = Modifier) {
+    val brand = MaterialTheme.colorScheme.primary
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val waveBottomY = h * 0.42f
+
+        // Fundal cu val portocaliu — gradient subtil
+        val wavePath = Path().apply {
+            moveTo(0f, 0f)
+            lineTo(w, 0f)
+            lineTo(w, waveBottomY - 30.dp.toPx())
+            cubicTo(
+                w * 0.7f, waveBottomY + 50.dp.toPx(),
+                w * 0.3f, waveBottomY - 90.dp.toPx(),
+                0f, waveBottomY,
+            )
+            close()
+        }
+        drawPath(
+            path = wavePath,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    brand.copy(alpha = 0.18f),
+                    brand.copy(alpha = 0.06f),
+                ),
+                startY = 0f,
+                endY = waveBottomY,
+            ),
+        )
+
+        // Cercuri plutitoare in zona val — subtil, alpha mic
+        drawCircle(
+            color = brand.copy(alpha = 0.10f),
+            radius = 90.dp.toPx(),
+            center = Offset(w * 0.18f, h * 0.12f),
+        )
+        drawCircle(
+            color = brand.copy(alpha = 0.07f),
+            radius = 60.dp.toPx(),
+            center = Offset(w * 0.85f, h * 0.22f),
+        )
+        drawCircle(
+            color = brand.copy(alpha = 0.05f),
+            radius = 110.dp.toPx(),
+            center = Offset(w * 0.55f, h * 0.05f),
+        )
+
+        // Cerc decorativ jos pentru echilibru
+        drawCircle(
+            color = brand.copy(alpha = 0.04f),
+            radius = 130.dp.toPx(),
+            center = Offset(w * 0.1f, h * 0.95f),
+        )
     }
 }

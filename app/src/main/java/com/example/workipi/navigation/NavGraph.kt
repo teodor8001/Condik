@@ -20,13 +20,36 @@ fun NavGraph(navController: NavHostController) {
             composable(Screen.CreateAccount.route) { CreateAccountScreen(navController) }
             composable(Screen.Home.route)          { HomeScreen(navController) }
             composable(Screen.Proiecte.route)    { ProjectsScreen(navController) }
+            composable(Screen.AddProject.route)  { AddProjectScreen(navController) }
             composable(
                 route = Screen.ProjectDetail.route,
-                arguments = listOf(navArgument("projectId") { type = NavType.StringType })
+                arguments = listOf(navArgument("projectId") { type = NavType.LongType })
             ) { backStackEntry ->
                 ProjectDetailScreen(
                     navController = navController,
-                    projectId     = backStackEntry.arguments?.getString("projectId")
+                    projectId     = backStackEntry.arguments?.getLong("projectId") ?: 0L,
+                )
+            }
+            composable(
+                route = Screen.AssignEmployees.route,
+                arguments = listOf(navArgument("projectId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                AssignEmployeesScreen(
+                    navController = navController,
+                    projectId     = backStackEntry.arguments?.getLong("projectId") ?: 0L,
+                )
+            }
+            composable(
+                route = Screen.PontareEntry.route,
+                arguments = listOf(
+                    navArgument("projectId") { type = NavType.LongType },
+                    navArgument("userId") { type = NavType.LongType },
+                ),
+            ) { backStackEntry ->
+                PontareEntryScreen(
+                    navController = navController,
+                    projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L,
+                    userId = backStackEntry.arguments?.getLong("userId") ?: 0L,
                 )
             }
             composable(Screen.Pontare.route)     { PontareScreen(navController) }
@@ -35,11 +58,20 @@ fun NavGraph(navController: NavHostController) {
             composable(Screen.AddEmployee.route) { AddEmployeeScreen(navController) }
             composable(
                 route = Screen.EmployeeDetail.route,
-                arguments = listOf(navArgument("employeeId") { type = NavType.StringType })
+                arguments = listOf(navArgument("employeeId") { type = NavType.LongType })
             ) { backStackEntry ->
                 EmployeeDetailScreen(
                     navController = navController,
-                    employeeId    = backStackEntry.arguments?.getString("employeeId")
+                    employeeId    = backStackEntry.arguments?.getLong("employeeId") ?: 0L,
+                )
+            }
+            composable(
+                route = Screen.ManageEmployeeSkills.route,
+                arguments = listOf(navArgument("employeeId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                ManageEmployeeSkillsScreen(
+                    navController = navController,
+                    employeeId    = backStackEntry.arguments?.getLong("employeeId") ?: 0L,
                 )
             }
             composable(Screen.Leaderboard.route) { LeaderboardScreen(navController) }

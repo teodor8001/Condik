@@ -23,5 +23,7 @@ class InvitationCodeRepository @Inject constructor(
             }
             .decodeSingleOrNull()
 
-
+    suspend fun deleteByCode(code: String): Result<Unit> = runCatching {
+        client.from(TABLE).delete { filter { eq("cod", code) } }
+    }
 }
