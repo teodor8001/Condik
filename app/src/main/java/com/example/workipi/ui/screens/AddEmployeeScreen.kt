@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.workipi.data.model.Lucrare
+import com.example.workipi.data.model.SkillLevel
 import com.example.workipi.data.model.UserRole
 import com.example.workipi.viewmodel.InvitationCodeViewModel
 
@@ -50,6 +52,7 @@ fun AddEmployeeScreen(
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var salary by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(InviteRole.ANGAJAT) }
     var roleMenuExpanded by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf("") }
@@ -107,6 +110,8 @@ fun AddEmployeeScreen(
                     onEmailChange = { email = it; localError = "" },
                     phone = phone,
                     onPhoneChange = { phone = it.filter { c -> c.isDigit() }; localError = "" },
+                    salary = salary,
+                    onSalaryChange = { salary = it.filter { c -> c.isDigit() || c == '.' }; localError = "" },
                     role = role,
                     onRoleChange = { role = it },
                     roleMenuExpanded = roleMenuExpanded,
@@ -115,10 +120,12 @@ fun AddEmployeeScreen(
                     isLoading = state.isLoading,
                     focusManager = focusManager,
                     onSubmit = {
+                        val parsedSalary = salary.takeIf { it.isNotBlank() }?.toFloatOrNull()
                         val error = when {
                             fullName.isBlank() -> "Introdu numele si prenumele."
                             email.isBlank() -> "Introdu email-ul."
                             phone.isBlank() -> "Introdu numarul de telefon."
+                            salary.isNotBlank() && parsedSalary == null -> "Salariul trebuie sa fie un numar valid."
                             else -> null
                         }
                         if (error != null) {
@@ -130,8 +137,18 @@ fun AddEmployeeScreen(
                             email = email,
                             phoneNumber = phone,
                             role = role.role,
+                            salary = parsedSalary,
                         )
                     }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SkillsCard(
+                    available = state.availableSkills,
+                    selected = state.selectedSkills,
+                    onToggle = viewModel::toggleSkill,
+                    onSetLevel = viewModel::setSkillLevel,
                 )
             } else {
                 GeneratedCodeCard(
@@ -140,6 +157,7 @@ fun AddEmployeeScreen(
                         fullName = ""
                         email = ""
                         phone = ""
+                        salary = ""
                         role = InviteRole.ANGAJAT
                         localError = ""
                         viewModel.reset()
@@ -159,6 +177,8 @@ private fun FormCard(
     onEmailChange: (String) -> Unit,
     phone: String,
     onPhoneChange: (String) -> Unit,
+    salary: String,
+    onSalaryChange: (String) -> Unit,
     role: InviteRole,
     onRoleChange: (InviteRole) -> Unit,
     roleMenuExpanded: Boolean,
@@ -218,6 +238,20 @@ private fun FormCard(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                shape = RoundedCornerShape(10.dp),
+            )
+
+            OutlinedTextField(
+                value = salary,
+                onValueChange = onSalaryChange,
+                label = { Text("Salariu lunar (RON)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
                     imeAction = ImeAction.Done
                 ),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -379,6 +413,119 @@ private fun GeneratedCodeCard(
                     text = "Genereaza alt cod",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SkillsCard(
+    available: List<Lucrare>,
+    selected: Map<Long, SkillLevel>,
+    onToggle: (Long) -> Unit,
+    onSetLevel: (Long, SkillLevel) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Competente (${selected.size} selectate)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+
+            if (available.isEmpty()) {
+                Text(
+                    text = "Nu exista lucrari definite. Adauga-le din Supabase intai.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                return@Column
+            }
+
+            available.forEach { lucrare ->
+                val isSelected = lucrare.id in selected
+                val level = selected[lucrare.id] ?: SkillLevel.JUNIOR
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            if (isSelected)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                            else
+                                Color.Transparent
+                        )
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggle(lucrare.id) },
+                    )
+                    Text(
+                        text = lucrare.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    if (isSelected) {
+                        SkillLevelDropdown(
+                            current = level,
+                            onSelect = { onSetLevel(lucrare.id, it) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SkillLevelDropdown(
+    current: SkillLevel,
+    onSelect: (SkillLevel) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = current.label,
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier
+                .menuAnchor()
+                .width(120.dp),
+            shape = RoundedCornerShape(8.dp),
+            trailingIcon = {
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+            },
+            textStyle = MaterialTheme.typography.bodySmall,
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            SkillLevel.entries.forEach { lvl ->
+                DropdownMenuItem(
+                    text = { Text(lvl.label) },
+                    onClick = {
+                        onSelect(lvl)
+                        expanded = false
+                    },
                 )
             }
         }

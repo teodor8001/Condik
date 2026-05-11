@@ -5,5 +5,6 @@ data class MockUser(
     val name: String,
     val email: String,
     val phone: String = "",
-    val role: UserRole
+    val role: UserRole,
+    val idCompany: Long? = null,
 )

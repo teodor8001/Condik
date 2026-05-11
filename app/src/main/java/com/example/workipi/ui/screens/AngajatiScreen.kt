@@ -18,38 +18,37 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.navigation.NavController
-import com.example.workipi.data.mock.MockData
-import com.example.workipi.data.model.MockEmployee
-import com.example.workipi.data.model.EmployeeLevel
+import com.example.workipi.data.model.User
 import com.example.workipi.navigation.Screen
-import com.example.workipi.ui.components.LevelBadge
 import com.example.workipi.ui.components.LocalOpenDrawer
+import com.example.workipi.viewmodel.AngajatiViewModel
 
 private enum class SortBy(val label: String) {
     ALFABETIC("Alfabetic"),
-    RANG_ASC("Rang ↑"),
-    RANG_DESC("Rang ↓")
+    ROL("Rol"),
+    SALARIU_DESC("Salariu ↓"),
 }
 
-private val levelOrder = listOf(
-    EmployeeLevel.JUNIOR,
-    EmployeeLevel.MID,
-    EmployeeLevel.SENIOR,
-    EmployeeLevel.LEAD
-)
-
 @Composable
-fun AngajatiScreen(navController: NavController) {
-    val employees  = MockData.employees
+fun AngajatiScreen(
+    navController: NavController,
+    viewModel: AngajatiViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsState()
     val openDrawer = LocalOpenDrawer.current
     var sortBy by remember { mutableStateOf(SortBy.ALFABETIC) }
 
-    val sorted = remember(sortBy) {
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.loadEmployees() }
+
+    val sorted = remember(sortBy, state.employees) {
         when (sortBy) {
-            SortBy.ALFABETIC  -> employees.sortedBy { it.name }
-            SortBy.RANG_ASC   -> employees.sortedBy { levelOrder.indexOf(it.level) }
-            SortBy.RANG_DESC  -> employees.sortedByDescending { levelOrder.indexOf(it.level) }
+            SortBy.ALFABETIC -> state.employees.sortedBy { it.fullName }
+            SortBy.ROL -> state.employees.sortedBy { it.role ?: "" }
+            SortBy.SALARIU_DESC -> state.employees.sortedByDescending { it.salary ?: 0.0 }
         }
     }
 
@@ -61,7 +60,6 @@ fun AngajatiScreen(navController: NavController) {
             .padding(top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // ---- Header ----
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -96,7 +94,6 @@ fun AngajatiScreen(navController: NavController) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Total angajati dreapta sus
                 Box(
                     modifier = Modifier
                         .padding(top = 4.dp)
@@ -106,7 +103,7 @@ fun AngajatiScreen(navController: NavController) {
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "${employees.size}",
+                            text = "${state.employees.size}",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -119,7 +116,6 @@ fun AngajatiScreen(navController: NavController) {
                     }
                 }
 
-                // Buton adauga angajat nou (genereaza cod invitatie)
                 Button(
                     onClick = { navController.navigate(Screen.AddEmployee.route) },
                     modifier = Modifier.padding(top = 4.dp),
@@ -145,50 +141,69 @@ fun AngajatiScreen(navController: NavController) {
             }
         }
 
-        // ---- Sort chips ----
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SortBy.entries.forEach { option ->
                 val selected = sortBy == option
                 FilterChip(
                     selected = selected,
-                    onClick  = { sortBy = option },
-                    label    = { Text(option.label, style = MaterialTheme.typography.bodySmall) },
-                    colors   = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor    = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor        = MaterialTheme.colorScheme.onPrimary,
-                        containerColor            = MaterialTheme.colorScheme.surface,
-                        labelColor                = MaterialTheme.colorScheme.onSurfaceVariant
+                    onClick = { sortBy = option },
+                    label = { Text(option.label, style = MaterialTheme.typography.bodySmall) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }
         }
 
-        // ---- Lista scrollabila ----
-        Card(
-            modifier = Modifier.fillMaxSize(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
-        ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
-                itemsIndexed(sorted) { index, employee ->
-                    AngajatRow(
-                        number   = index + 1,
-                        employee = employee,
-                        onClick  = {
-                            navController.navigate(
-                                Screen.EmployeeDetail.createRoute(employee.id)
+        when {
+            state.isLoading && state.employees.isEmpty() -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            state.errorMessage != null && state.employees.isEmpty() -> {
+                Text(
+                    text = state.errorMessage!!,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            state.employees.isEmpty() -> {
+                Text(
+                    text = "Nu ai inca angajati. Apasa Adauga nou angajat.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            else -> {
+                Card(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                    ) {
+                        itemsIndexed(sorted) { index, employee ->
+                            AngajatRow(
+                                number = index + 1,
+                                employee = employee,
+                                onClick = {
+                                    navController.navigate(
+                                        Screen.EmployeeDetail.createRoute(employee.idUser)
+                                    )
+                                },
                             )
+                            if (index < sorted.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 20.dp),
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                )
+                            }
                         }
-                    )
-                    if (index < sorted.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 20.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                        )
                     }
                 }
             }
@@ -197,58 +212,62 @@ fun AngajatiScreen(navController: NavController) {
 }
 
 @Composable
-private fun AngajatRow(number: Int, employee: MockEmployee, onClick: () -> Unit) {
+private fun AngajatRow(number: Int, employee: User, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // Numar ordine
         Text(
             text = "$number.",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(28.dp)
+            modifier = Modifier.width(28.dp),
         )
 
-        // Avatar initiale
         Box(
             modifier = Modifier
                 .size(46.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = employee.name
+                text = employee.fullName
                     .split(" ")
                     .take(2)
-                    .joinToString("") { it.first().uppercase() },
+                    .joinToString("") { it.firstOrNull()?.uppercase() ?: "" },
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary,
             )
         }
 
-        // Nume + specialitate principala
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = employee.name,
+                text = employee.fullName,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = employee.primarySpecialty,
+                text = employee.role?.replaceFirstChar { it.uppercase() } ?: "Angajat",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        LevelBadge(level = employee.level)
+        employee.salary?.let { salary ->
+            Text(
+                text = "${salary.toInt()} RON",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }

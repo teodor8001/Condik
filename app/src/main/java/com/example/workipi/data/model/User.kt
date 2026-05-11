@@ -14,6 +14,7 @@ data class User(
     @SerialName("salariu") val salary: Double? = null,
     @SerialName("punctaj") val points: Double? = null,
     @SerialName("auth_utilizator_id") val authUserId: String? = null,
+    @SerialName("este_checked_in") val isCheckedIn: Boolean = false,
 )
 
 fun User.toUser(): MockUser = MockUser(
@@ -28,4 +29,5 @@ fun User.toUser(): MockUser = MockUser(
         "client" -> UserRole.CLIENT
         else -> UserRole.ANGAJAT
     },
+    idCompany = idCompany,
 )

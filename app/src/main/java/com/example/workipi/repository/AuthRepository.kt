@@ -93,9 +93,9 @@ class AuthRepository @Inject constructor(
         email: String,
         role: String,
         companyId: Long,
-        password: String
+        password: String,
+        salary: Float? = null,
     ): Result<User> = runCatching {
-        // TODO: Maybe I will have to have a necessary parameter the salary
         Log.d(TAG, "Inceput proces de inregistrare a angajatului $fullName")
 
         client.auth.signUpWith(Email) {
@@ -114,13 +114,13 @@ class AuthRepository @Inject constructor(
                     rol = role,
                     idFirma = companyId,
                     authUtilizatorId = authUserId,
+                    salariu = salary,
                 )
             )
         } catch (e: Throwable) {
             runCatching { client.auth.signOut() }
             throw e
         }
-
     }
 
     fun getCurrentUserId(): String {
