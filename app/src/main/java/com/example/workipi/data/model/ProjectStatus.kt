@@ -1,3 +1,3 @@
 package com.example.workipi.data.model
 
-enum class ProjectStatus { ACTIV, INTARZIAT, FINALIZAT }
+enum class ProjectStatus { OFERTA, ACTIV, INTARZIAT, FINALIZAT }

@@ -1,6 +1,5 @@
 package com.example.workipi.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.workipi.viewmodel.PontareViewModel
+import com.example.workipi.viewmodel.HistoryViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,7 +36,7 @@ fun PontareEntryScreen(
     navController: NavController,
     projectId: Long,
     userId: Long,
-    viewModel: PontareViewModel = hiltViewModel(),
+    viewModel: HistoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current

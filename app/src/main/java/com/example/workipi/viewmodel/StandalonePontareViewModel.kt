@@ -5,12 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.mock.MockSession
 import com.example.workipi.data.model.Lucrare
-import com.example.workipi.data.model.PontareInsert
+import com.example.workipi.data.model.HistoryInsert
 import com.example.workipi.data.model.Project
 import com.example.workipi.data.model.User
 import com.example.workipi.data.model.Zone
-import com.example.workipi.repository.LucrareRepository
-import com.example.workipi.repository.PontareRepository
+import com.example.workipi.repository.SkillRepository
+import com.example.workipi.repository.HistoryRepository
 import com.example.workipi.repository.ProjectRepository
 import com.example.workipi.repository.UserRepository
 import com.example.workipi.repository.ZoneRepository
@@ -55,9 +55,10 @@ data class StandalonePontareUiState(
 class StandalonePontareViewModel @Inject constructor(
     private val projectRepository: ProjectRepository,
     private val userRepository: UserRepository,
-    private val lucrareRepository: LucrareRepository,
+    private val skillRepository: SkillRepository,
     private val zoneRepository: ZoneRepository,
-    private val pontareRepository: PontareRepository,
+    private val historyRepository: HistoryRepository,
+    private val zoneHistoryRepository: com.example.workipi.repository.ZoneHistoryRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StandalonePontareUiState())
@@ -78,7 +79,7 @@ class StandalonePontareViewModel @Inject constructor(
             try {
                 val projects = projectRepository.getProjectsByCompanyId(companyId)
                 val employees = userRepository.getEmployeesByCompanyId(companyId).getOrDefault(emptyList())
-                val skills = lucrareRepository.getSkillsForCompany(companyId).getOrDefault(emptyList())
+                val skills = skillRepository.getSkillsForCompany(companyId).getOrDefault(emptyList())
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -179,8 +180,8 @@ class StandalonePontareViewModel @Inject constructor(
                 val workDate = Instant.fromEpochMilliseconds(state.workDateMillis)
                     .toLocalDateTime(TimeZone.UTC).date
 
-                pontareRepository.createPontare(
-                    PontareInsert(
+                historyRepository.createHistory(
+                    HistoryInsert(
                         userId = state.selectedUserId!!,
                         idLucrare = skill!!.id,
                         idZona = state.selectedZoneId!!,
@@ -193,6 +194,10 @@ class StandalonePontareViewModel @Inject constructor(
 
                 val earnedPoints = skill.points.toDouble() * quantity
                 userRepository.addPoints(state.selectedUserId, earnedPoints).getOrThrow()
+
+                // Increment progres lucrare in zone_lucrari (sursa de adevar pentru bara de progres)
+                zoneHistoryRepository.incrementCompleted(state.selectedZoneId, skill.id, quantity)
+                    .onFailure { e -> Log.e(TAG, "Increment cantitate_lucrata esuat", e) }
 
                 if (skill.unit.equals(UNIT_MP, ignoreCase = true)) {
                     zoneRepository.addCompletedSurface(state.selectedZoneId, quantity).getOrThrow()

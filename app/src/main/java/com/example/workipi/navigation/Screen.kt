@@ -27,5 +27,6 @@ sealed class Screen(val route: String) {
     }
     object Leaderboard    : Screen("leaderboard")
     object Preturi        : Screen("preturi")
+    object Ofertare       : Screen("ofertare")
     object Settings       : Screen("settings")
 }

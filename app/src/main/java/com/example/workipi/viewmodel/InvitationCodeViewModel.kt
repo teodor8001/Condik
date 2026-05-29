@@ -12,7 +12,7 @@ import com.example.workipi.data.model.toDbValue
 import com.example.workipi.repository.AuthRepository
 import com.example.workipi.repository.InvitationCodeLucrareRepository
 import com.example.workipi.repository.InvitationCodeRepository
-import com.example.workipi.repository.LucrareRepository
+import com.example.workipi.repository.SkillRepository
 import com.example.workipi.util.InvitationCodeGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +41,7 @@ data class InvitationCodeUiState(
 class InvitationCodeViewModel @Inject constructor(
     private val invitationCodeRepository: InvitationCodeRepository,
     private val authRepository: AuthRepository,
-    private val lucrareRepository: LucrareRepository,
+    private val skillRepository: SkillRepository,
     private val invitationCodeLucrareRepository: InvitationCodeLucrareRepository,
 ) : ViewModel() {
 
@@ -56,7 +56,7 @@ class InvitationCodeViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val companyId = authRepository.getCompanyIdFromAuthUser()
-                lucrareRepository.getSkillsForCompany(companyId)
+                skillRepository.getSkillsForCompany(companyId)
                     .onSuccess { list -> _uiState.update { it.copy(availableSkills = list) } }
                     .onFailure { e -> Log.e(TAG, "Nu am putut incarca lucrari", e) }
             } catch (e: Throwable) {

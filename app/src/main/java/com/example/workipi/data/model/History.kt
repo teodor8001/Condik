@@ -5,7 +5,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class PontareInsert(
+data class HistoryInsert(
     @SerialName("id_utilizator") val userId: Long,
     @SerialName("id_lucrare") val idLucrare: Long,
     @SerialName("id_zona") val idZona: Long,
@@ -16,7 +16,7 @@ data class PontareInsert(
 )
 
 @Serializable
-data class Pontare(
+data class History(
     @SerialName("id_pontare") val id: Long,
     @SerialName("id_utilizator") val userId: Long,
     @SerialName("id_lucrare") val idLucrare: Long,

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.workipi.navigation.Screen
 import com.example.workipi.viewmodel.AddProjectViewModel
 import com.example.workipi.viewmodel.ZoneDraft
 import java.text.SimpleDateFormat
@@ -45,9 +46,16 @@ fun AddProjectScreen(
     var showEndDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.createdProject) {
-        if (state.createdProject != null) {
+        val created = state.createdProject
+        if (created != null) {
             viewModel.consumeCreatedProject()
-            navController.popBackStack()
+            val destination = if (created.isOffer)
+                Screen.Ofertare.route
+            else
+                Screen.ProjectDetail.createRoute(created.projectId)
+            navController.navigate(destination) {
+                popUpTo(Screen.AddProject.route) { inclusive = true }
+            }
         }
     }
 
@@ -145,14 +153,37 @@ fun AddProjectScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            ZonesCard(
-                zones = state.zones,
-                totalSurface = state.zones.sumOf { (it.surface.toFloatOrNull() ?: 0f).toDouble() },
-                onNameChange = viewModel::onZoneNameChange,
-                onSurfaceChange = viewModel::onZoneSurfaceChange,
-                onAddZone = viewModel::addZone,
-                onRemoveZone = viewModel::removeZone,
-                focusManager = focusManager,
+            IsOfferToggleCard(
+                isOffer = state.isOffer,
+                onChange = viewModel::onIsOfferChange,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            HasZonesToggleCard(
+                hasZones = state.hasZones,
+                onChange = viewModel::onHasZonesChange,
+            )
+
+            if (state.hasZones) {
+                Spacer(modifier = Modifier.height(16.dp))
+                ZonesCard(
+                    zones = state.zones,
+                    totalSurface = state.zones.sumOf { (it.surface.toFloatOrNull() ?: 0f).toDouble() },
+                    onNameChange = viewModel::onZoneNameChange,
+                    onSurfaceChange = viewModel::onZoneSurfaceChange,
+                    onAddZone = viewModel::addZone,
+                    onRemoveZone = viewModel::removeZone,
+                    focusManager = focusManager,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            EmployeesCard(
+                employees = state.availableEmployees,
+                selectedIds = state.selectedEmployeeIds,
+                onToggle = viewModel::toggleEmployee,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -201,6 +232,139 @@ fun AddProjectScreen(
                 showEndDatePicker = false
             },
         )
+    }
+}
+
+@Composable
+private fun IsOfferToggleCard(
+    isOffer: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Salveaza ca oferta",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = if (isOffer)
+                        "Va aparea in sectiunea Ofertare, nu in Proiecte."
+                    else
+                        "Va fi proiect activ, vizibil in lista de proiecte.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = isOffer, onCheckedChange = onChange)
+        }
+    }
+}
+
+@Composable
+private fun EmployeesCard(
+    employees: List<com.example.workipi.data.model.User>,
+    selectedIds: Set<Long>,
+    onToggle: (Long) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Echipa (${selectedIds.size} selectati)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (employees.isEmpty()) {
+                Text(
+                    text = "Niciun angajat in firma.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                employees.forEach { user ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = user.idUser in selectedIds,
+                            onCheckedChange = { onToggle(user.idUser) },
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = user.fullName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = user.role?.replaceFirstChar { it.uppercase() } ?: "Angajat",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HasZonesToggleCard(
+    hasZones: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Proiect cu zone",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = if (hasZones)
+                        "Lucrarile se vor adauga pe fiecare zona."
+                    else
+                        "Lucrarile se vor adauga direct pe proiect.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = hasZones, onCheckedChange = onChange)
+        }
     }
 }
 

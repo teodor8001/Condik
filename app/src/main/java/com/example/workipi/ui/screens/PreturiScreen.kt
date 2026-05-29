@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
@@ -35,6 +36,7 @@ fun PreturiScreen(
     val state by viewModel.uiState.collectAsState()
 
     var editingSkill by remember { mutableStateOf<Lucrare?>(null) }
+    var deletingSkill by remember { mutableStateOf<Lucrare?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     val openDrawer = LocalOpenDrawer.current
 
@@ -148,6 +150,12 @@ fun PreturiScreen(
                                 ) {
                                     Icon(Icons.Filled.Edit, contentDescription = "Editeaza", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                 }
+                                IconButton(
+                                    onClick = { deletingSkill = skill },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Sterge", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                }
                             }
                             if (index < state.skills.lastIndex) {
                                 HorizontalDivider(
@@ -174,6 +182,23 @@ fun PreturiScreen(
             onConfirm = { name, unit, price, points ->
                 viewModel.updateSkill(skill.id, name, unit.label, price, points)
                 editingSkill = null
+            },
+        )
+    }
+
+    deletingSkill?.let { skill ->
+        AlertDialog(
+            onDismissRequest = { deletingSkill = null },
+            title = { Text("Sterge lucrare") },
+            text = { Text("Esti sigur ca vrei sa stergi \"${skill.name}\"? Aceasta actiune nu poate fi anulata.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteSkill(skill.id)
+                    deletingSkill = null
+                }) { Text("Sterge", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingSkill = null }) { Text("Anuleaza") }
             },
         )
     }

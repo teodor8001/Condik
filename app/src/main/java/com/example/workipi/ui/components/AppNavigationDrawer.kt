@@ -48,6 +48,7 @@ private val adminItems = listOf(
     NavItem(Screen.Angajati,    "Angajati",   Icons.Filled.Group),
     NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
     NavItem(Screen.Preturi,     "Preturi",    Icons.Filled.Payments),
+    NavItem(Screen.Ofertare,    "Ofertare",   Icons.Filled.Description),
 )
 
 private val angajatItems = listOf(

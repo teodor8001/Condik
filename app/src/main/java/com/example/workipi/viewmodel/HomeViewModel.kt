@@ -4,8 +4,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.mock.MockSession
-import com.example.workipi.repository.LucrareRepository
-import com.example.workipi.repository.PontareRepository
+import com.example.workipi.repository.SkillRepository
+import com.example.workipi.repository.HistoryRepository
 import com.example.workipi.repository.ProjectRepository
 import com.example.workipi.repository.UserRepository
 import com.example.workipi.repository.ZoneRepository
@@ -47,6 +47,12 @@ data class ProjectMpBar(
     val totalMp: Float,
 )
 
+data class SkillMpBar(
+    val projectIds: List<Long>,
+    val name: String,
+    val totalMp: Float,
+)
+
 data class HomeUiState(
     val activeProjects: Int = 0,
     val avgMpPerDay: Float = 0f,
@@ -63,8 +69,8 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val projectRepository: ProjectRepository,
     private val zoneRepository: ZoneRepository,
-    private val pontareRepository: PontareRepository,
-    private val lucrareRepository: LucrareRepository,
+    private val historyRepository: HistoryRepository,
+    private val skillRepository: SkillRepository,
     private val userRepository: UserRepository,
 ) : ViewModel() {
 
@@ -98,18 +104,18 @@ class HomeViewModel @Inject constructor(
 
                 // Media mp/zi: pontari peste toate zonele firmei, in ultimele 30 zile,
                 // doar pe lucrari cu unitate "mp"
-                val skills = lucrareRepository.getSkillsForCompany(companyId)
+                val skills = skillRepository.getSkillsForCompany(companyId)
                     .getOrDefault(emptyList())
                 val mpSkillIds = skills.filter { it.unit.equals(UNIT_MP, ignoreCase = true) }
                     .map { it.id }.toSet()
 
-                val pontari = if (zones.isEmpty()) emptyList()
-                else pontareRepository.getByZones(zones.map { it.id }).getOrDefault(emptyList())
+                val projectHistoryContor = if (zones.isEmpty()) emptyList()
+                else historyRepository.getByZones(zones.map { it.id }).getOrDefault(emptyList())
 
                 // Fereastra: ultimele 30 zile, ULTIMA zi = azi
                 val today = today()
                 val firstDay = today.minus(MP_LOOKBACK_DAYS - 1, DateTimeUnit.DAY)
-                val recent = pontari.filter { p ->
+                val recent = projectHistoryContor.filter { p ->
                     p.idLucrare in mpSkillIds && (p.workDate?.let { it in firstDay..today } ?: false)
                 }
                 val totalMp = recent.sumOf { it.quantity.toDouble() }
@@ -146,7 +152,7 @@ class HomeViewModel @Inject constructor(
                 }
 
                 // Top 4 proiecte dupa total mp (TOATE timpurile, fara filtru de data)
-                val totalMpByProject = pontari
+                val totalMpByProject = projectHistoryContor
                     .filter { it.idLucrare in mpSkillIds }
                     .groupBy { p -> zoneToProject[p.idZona] }
                     .filterKeys { it != null }

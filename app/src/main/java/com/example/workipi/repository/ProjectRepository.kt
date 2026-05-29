@@ -14,7 +14,20 @@ class ProjectRepository @Inject constructor(
     suspend fun getProjectsByCompanyId(companyId: Long): List<Project> =
          client.from(TABLE)
             .select {
-                filter { eq("id_firma", companyId)}
+                filter {
+                    eq("id_firma", companyId)
+                    eq("este_oferta", false)
+                }
+            }
+            .decodeList<Project>()
+
+    suspend fun getOffersByCompanyId(companyId: Long): List<Project> =
+        client.from(TABLE)
+            .select {
+                filter {
+                    eq("id_firma", companyId)
+                    eq("este_oferta", true)
+                }
             }
             .decodeList<Project>()
 
@@ -39,4 +52,15 @@ class ProjectRepository @Inject constructor(
         }
     }
 
+    suspend fun acceptOffer(projectId: Long): Result<Unit> = runCatching {
+        client.from(TABLE).update({ set("este_oferta", false) }) {
+            filter { eq("id_proiect", projectId) }
+        }
+    }
+
+    suspend fun deleteProject(projectId: Long): Result<Unit> = runCatching {
+        client.from(TABLE).delete {
+            filter { eq("id_proiect", projectId) }
+        }
+    }
 }

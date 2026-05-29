@@ -8,7 +8,7 @@ import javax.inject.Inject
 
 private const val TABLE = "lucrari"
 
-class LucrareRepository @Inject constructor(
+class SkillRepository @Inject constructor(
     private val client: SupabaseClient,
 ) {
     suspend fun getSkillsForCompany(companyId: Long): Result<List<Lucrare>> = runCatching {
@@ -38,6 +38,12 @@ class LucrareRepository @Inject constructor(
                 set("punctaj", points)
             }
         ) {
+            filter { eq("id_lucrare", id) }
+        }
+    }
+
+    suspend fun deleteSkill(id: Long): Result<Unit> = runCatching {
+        client.from(TABLE).delete {
             filter { eq("id_lucrare", id) }
         }
     }

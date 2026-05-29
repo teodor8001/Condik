@@ -29,6 +29,7 @@ data class ProjectInsert(
     @SerialName("termen_finalizare") val endDate: LocalDate,
     @SerialName("buget") val budget: Float,
     @SerialName("id_firma") val companyId: Long,
+    @SerialName("este_oferta") val isOffer: Boolean = false,
 )
 
 @Serializable
@@ -42,4 +43,5 @@ data class Project(
     @SerialName("termen_finalizare") val endDate: LocalDate,
     @SerialName("buget") val budget: Float? = null,
     @SerialName("id_firma") val companyId: Long,
+    @SerialName("este_oferta") val isOffer: Boolean = false,
 )

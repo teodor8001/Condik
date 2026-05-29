@@ -377,7 +377,7 @@ private fun EmployeePontareRow(entry: PontareEntry) {
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = "${entry.pontare.workDate ?: "—"} • ${entry.pontare.quantity.toInt()} ${entry.lucrareUnit} • ${entry.pontare.hours?.toInt() ?: 0}h",
+                text = "${entry.history.workDate ?: "—"} • ${entry.history.quantity.toInt()} ${entry.lucrareUnit} • ${entry.history.hours?.toInt() ?: 0}h",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

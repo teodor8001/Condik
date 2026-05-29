@@ -4,10 +4,10 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.model.Lucrare
-import com.example.workipi.data.model.Pontare
+import com.example.workipi.data.model.History
 import com.example.workipi.data.model.User
-import com.example.workipi.repository.LucrareRepository
-import com.example.workipi.repository.PontareRepository
+import com.example.workipi.repository.SkillRepository
+import com.example.workipi.repository.HistoryRepository
 import com.example.workipi.repository.UserRepository
 import com.example.workipi.repository.UtilizatorLucrareRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,7 +24,7 @@ data class EmployeeSkill(
 )
 
 data class PontareEntry(
-    val pontare: Pontare,
+    val history: History,
     val lucrareName: String,
     val lucrareUnit: String,
     val earnedPoints: Long,
@@ -44,8 +44,8 @@ data class EmployeeDetailUiState(
 class EmployeeDetailViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val utilizatorLucrareRepository: UtilizatorLucrareRepository,
-    private val lucrareRepository: LucrareRepository,
-    private val pontareRepository: PontareRepository,
+    private val skillRepository: SkillRepository,
+    private val historyRepository: HistoryRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EmployeeDetailUiState())
@@ -71,7 +71,7 @@ class EmployeeDetailViewModel @Inject constructor(
                 .getOrDefault(emptyList())
 
             val catalog: Map<Long, Lucrare> = if (user.idCompany == null) emptyMap()
-            else lucrareRepository
+            else skillRepository
                 .getSkillsForCompany(user.idCompany)
                 .getOrDefault(emptyList())
                 .associateBy { it.id }
@@ -81,12 +81,12 @@ class EmployeeDetailViewModel @Inject constructor(
                 EmployeeSkill(lucrare = lucrare, level = row.skillLevel)
             }
 
-            val pontari = pontareRepository.getByUser(userId)
+            val pontari = historyRepository.getByUser(userId)
                 .getOrDefault(emptyList())
                 .map { p ->
                     val lucrare = catalog[p.idLucrare]
                     PontareEntry(
-                        pontare = p,
+                        history = p,
                         lucrareName = lucrare?.name ?: "—",
                         lucrareUnit = lucrare?.unit ?: "",
                         earnedPoints = ((lucrare?.points ?: 0L) * p.quantity.toLong()),
