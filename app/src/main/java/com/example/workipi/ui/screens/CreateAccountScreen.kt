@@ -102,7 +102,7 @@ fun CreateAccountScreen(
         ) {
 
             Text(
-                text = "WorkIPI",
+                text = "CONDIK",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary

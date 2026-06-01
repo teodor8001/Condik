@@ -126,7 +126,7 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "WorkIPI",
+                        text = "Condik",
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,

@@ -153,13 +153,6 @@ fun AddProjectScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            IsOfferToggleCard(
-                isOffer = state.isOffer,
-                onChange = viewModel::onIsOfferChange,
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
             HasZonesToggleCard(
                 hasZones = state.hasZones,
                 onChange = viewModel::onHasZonesChange,

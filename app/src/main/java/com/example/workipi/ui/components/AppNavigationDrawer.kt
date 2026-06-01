@@ -85,7 +85,7 @@ private fun DrawerContent(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                text = "WorkIPI",
+                text = "CONDIK",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
