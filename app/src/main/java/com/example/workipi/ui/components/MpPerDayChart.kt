@@ -35,7 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.workipi.viewmodel.ProjectMpSeries
+import com.example.workipi.viewmodel.SkillMpSeries
 import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalDate
 import kotlin.math.max
@@ -65,7 +65,7 @@ private val ChartHeightDp = 240.dp
 
 @Composable
 fun MpPerDayChart(
-    series: List<ProjectMpSeries>,
+    series: List<SkillMpSeries>,
     chartDays: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -86,13 +86,13 @@ fun MpPerDayChart(
             ) {
                 Column {
                     Text(
-                        text = "Mp / zi pe proiect",
+                        text = "Mp / zi pe lucrare",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                     Text(
-                        text = "Top 4 proiecte • ultimele $chartDays zile",
+                        text = "Top 4 lucrari • ultimele $chartDays zile",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -136,7 +136,7 @@ fun MpPerDayChart(
 }
 
 @Composable
-private fun ChartBody(series: List<ProjectMpSeries>, chartDays: Int) {
+private fun ChartBody(series: List<SkillMpSeries>, chartDays: Int) {
     val density = LocalDensity.current
     val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -479,7 +479,7 @@ private fun smoothPath(points: List<Offset>): Path {
 }
 
 @Composable
-private fun ChartLegend(series: List<ProjectMpSeries>) {
+private fun ChartLegend(series: List<SkillMpSeries>) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

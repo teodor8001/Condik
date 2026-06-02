@@ -25,7 +25,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.workipi.viewmodel.ProjectMpBar
+import com.example.workipi.viewmodel.SkillMpBar
 import kotlinx.coroutines.delay
 import kotlin.math.max
 
@@ -38,7 +38,7 @@ private val BarColors = listOf(
 
 @Composable
 fun TotalMpBarChart(
-    bars: List<ProjectMpBar>,
+    bars: List<SkillMpBar>,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -64,7 +64,7 @@ fun TotalMpBarChart(
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                     Text(
-                        text = "Top 4 proiecte",
+                        text = "Top 4 lucrari",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -107,7 +107,7 @@ fun TotalMpBarChart(
 }
 
 @Composable
-private fun BarsCanvas(bars: List<ProjectMpBar>, modifier: Modifier = Modifier) {
+private fun BarsCanvas(bars: List<SkillMpBar>, modifier: Modifier = Modifier) {
     var animated by remember(bars) { mutableStateOf(false) }
     LaunchedEffect(bars) {
         animated = false
@@ -173,7 +173,7 @@ private fun BarsCanvas(bars: List<ProjectMpBar>, modifier: Modifier = Modifier) 
 }
 
 @Composable
-private fun BarsLegend(bars: List<ProjectMpBar>) {
+private fun BarsLegend(bars: List<SkillMpBar>) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         bars.forEachIndexed { idx, bar ->
             val color = BarColors[idx % BarColors.size]

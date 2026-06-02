@@ -3,13 +3,15 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.repository.AuthRepository
 import com.example.workipi.repository.SkillRepository
 import com.example.workipi.repository.HistoryRepository
 import com.example.workipi.repository.ProjectRepository
 import com.example.workipi.repository.UserRepository
 import com.example.workipi.repository.ZoneRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,29 +28,23 @@ import javax.inject.Inject
 
 private const val UNIT_MP = "mp"
 private const val MP_LOOKBACK_DAYS = 30
-private const val CHART_TOP_N_PROJECTS = 4
+private const val CHART_TOP_N_SKILLS = 4
 
 data class MpPerDayPoint(
     val date: LocalDate,
     val mp: Float,
 )
 
-data class ProjectMpSeries(
-    val projectId: Long,
+data class SkillMpSeries(
+    val skillId: Long,
     val name: String,
     /** Una pentru fiecare zi din fereastra (30 zile), in ordine cronologica, ultima = azi */
     val points: List<MpPerDayPoint>,
     val totalMp: Float,
 )
 
-data class ProjectMpBar(
-    val projectId: Long,
-    val name: String,
-    val totalMp: Float,
-)
-
 data class SkillMpBar(
-    val projectIds: List<Long>,
+    val skillId: Long,
     val name: String,
     val totalMp: Float,
 )
@@ -58,8 +54,8 @@ data class HomeUiState(
     val avgMpPerDay: Float = 0f,
     val peopleCheckedIn: Long = 0,
     val inspectionsToDo: Int = 5, // mocked deocamdata
-    val chartSeries: List<ProjectMpSeries> = emptyList(),
-    val barChart: List<ProjectMpBar> = emptyList(),
+    val chartSeries: List<SkillMpSeries> = emptyList(),
+    val barChart: List<SkillMpBar> = emptyList(),
     val chartDays: Int = MP_LOOKBACK_DAYS,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
@@ -67,6 +63,7 @@ data class HomeUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    private val authRepository: AuthRepository,
     private val projectRepository: ProjectRepository,
     private val zoneRepository: ZoneRepository,
     private val historyRepository: HistoryRepository,
@@ -76,20 +73,19 @@ class HomeViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private val companyIdAsync: Deferred<Long> = viewModelScope.async {
+        authRepository.getCompanyIdFromAuthUser()
+    }
 
     init {
         load()
     }
 
     fun load() {
-        val companyId = MockSession.currentUser?.idCompany
-        if (companyId == null) {
-            _uiState.update { it.copy(errorMessage = "Nu am putut identifica firma.") }
-            return
-        }
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             try {
+                val companyId = companyIdAsync.await()
                 // Proiecte + zonele lor → calculam cate sunt active (progress < 1)
                 val projects = projectRepository.getProjectsByCompanyId(companyId)
                 val zones = zoneRepository.getZonesForProjects(projects.map { it.projectId })
@@ -122,58 +118,45 @@ class HomeViewModel @Inject constructor(
                 val days = recent.mapNotNull { it.workDate }.distinct().size
                 val avgMpPerDay = if (days > 0) (totalMp / days).toFloat() else 0f
 
-                // Top 4 proiecte dupa media mp/zi → seria zilnica pentru fiecare
-                val zoneToProject = zones.associate { it.id to it.projectId }
-                val projectName = projects.associateBy({ it.projectId }, { it.title })
+                // Top 4 lucrari (mp) dupa total mp lucrati in ultimele 30 zile
+                val skillName = skills.associateBy({ it.id }, { it.name })
+                val perSkill = recent.groupBy { it.idLucrare }
 
-                val perProject = recent.groupBy { p -> zoneToProject[p.idZona] }
-                    .filterKeys { it != null }
-                    .mapKeys { it.key!! }
-
-                val topProjectIds = perProject.entries
+                val topSkillIds = perSkill.entries
                     .sortedByDescending { (_, list) -> list.sumOf { it.quantity.toDouble() } }
-                    .take(CHART_TOP_N_PROJECTS)
+                    .take(CHART_TOP_N_SKILLS)
                     .map { it.key }
 
-                val chartSeries = topProjectIds.map { pid ->
-                    val list = perProject[pid].orEmpty()
+                val chartSeries = topSkillIds.map { sid ->
+                    val list = perSkill[sid].orEmpty()
                     val mpByDay = list.groupBy { it.workDate!! }
                         .mapValues { (_, ps) -> ps.sumOf { it.quantity.toDouble() }.toFloat() }
                     val pts = (0 until MP_LOOKBACK_DAYS).map { offset ->
                         val d = firstDay.plus(offset, DateTimeUnit.DAY)
                         MpPerDayPoint(date = d, mp = mpByDay[d] ?: 0f)
                     }
-                    ProjectMpSeries(
-                        projectId = pid,
-                        name = projectName[pid] ?: "Proiect #$pid",
+                    SkillMpSeries(
+                        skillId = sid,
+                        name = skillName[sid] ?: "Lucrare #$sid",
                         points = pts,
                         totalMp = pts.sumOf { it.mp.toDouble() }.toFloat(),
                     )
                 }
 
-                // Top 4 proiecte dupa total mp (TOATE timpurile, fara filtru de data)
-                val totalMpByProject = projectHistoryContor
-                    .filter { it.idLucrare in mpSkillIds }
-                    .groupBy { p -> zoneToProject[p.idZona] }
-                    .filterKeys { it != null }
-                    .mapKeys { it.key!! }
-                    .mapValues { (_, list) -> list.sumOf { it.quantity.toDouble() }.toFloat() }
+                val barChart = chartSeries.map { s ->
+                    SkillMpBar(
+                        skillId = s.skillId,
+                        name = s.name,
+                        totalMp = s.totalMp,
+                    )
+                }
 
-                val barChart = totalMpByProject.entries
-                    .sortedByDescending { it.value }
-                    .take(CHART_TOP_N_PROJECTS)
-                    .map { (pid, total) ->
-                        ProjectMpBar(
-                            projectId = pid,
-                            name = projectName[pid] ?: "Proiect #$pid",
-                            totalMp = total,
-                        )
-                    }
 
                 // Total checked-in pe firma
                 val checkedIn = userRepository.countCheckedIn(companyId).getOrDefault(0L)
 
                 _uiState.update {
+                    // TODO
                     it.copy(
                         isLoading = false,
                         activeProjects = activeProjects,

@@ -4,9 +4,11 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.mock.MockSession
+import com.example.workipi.data.model.History
 import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.HistoryInsert
 import com.example.workipi.data.model.Zone
+import com.example.workipi.repository.AuthRepository
 import com.example.workipi.repository.SkillRepository
 import com.example.workipi.repository.HistoryRepository
 import com.example.workipi.repository.UserRepository
@@ -42,6 +44,7 @@ data class PontareUiState(
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
+    private val authRepository: AuthRepository,
     private val skillRepository: SkillRepository,
     private val zoneRepository: ZoneRepository,
     private val historyRepository: HistoryRepository,
