@@ -10,14 +10,18 @@ import com.example.workipi.ui.components.AppNavigationDrawer
 import com.example.workipi.ui.screens.*
 
 @Composable
-fun NavGraph(navController: NavHostController) {
+fun NavGraph(
+    navController: NavHostController,
+    startDestination: String = Screen.Login.route,
+) {
     AppNavigationDrawer(navController = navController) {
         NavHost(
             navController    = navController,
-            startDestination = Screen.Login.route
+            startDestination = startDestination
         ) {
-            composable(Screen.Login.route)         { LoginScreen(navController) }
-            composable(Screen.CreateAccount.route) { CreateAccountScreen(navController) }
+            composable(Screen.Login.route)            { LoginScreen(navController) }
+            composable(Screen.CreateCompany.route)    { CreateCompanyScreen(navController) }
+            composable(Screen.ActivateAccount.route)  { ActivateAccountScreen(navController) }
             composable(Screen.Home.route)          { HomeScreen(navController) }
             composable(Screen.Proiecte.route)    { ProjectsScreen(navController) }
             composable(Screen.AddProject.route)  { AddProjectScreen(navController) }

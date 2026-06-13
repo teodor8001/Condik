@@ -264,11 +264,22 @@ fun LoginScreen(
                     }
 
                     TextButton(
-                        onClick = { navController.navigate(Screen.CreateAccount.route) },
+                        onClick = { navController.navigate(Screen.CreateCompany.route) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "Creeaza cont firma noua",
+                            text = "Creeaza firma noua",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    TextButton(
+                        onClick = { navController.navigate(Screen.ActivateAccount.route) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Am un cod de invitatie",
                             color = MaterialTheme.colorScheme.primary,
                             fontSize = 14.sp
                         )

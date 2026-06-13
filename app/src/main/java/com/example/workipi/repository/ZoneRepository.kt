@@ -42,6 +42,30 @@ class ZoneRepository @Inject constructor(
         }
     }
 
+    suspend fun updateZone(zoneId: Long, name: String, surface: Float): Result<Unit> = runCatching {
+        client.from(TABLE).update(
+            {
+                set("denumire_zona", name)
+                set("suprafata_totala", surface)
+            }
+        ) {
+            filter { eq("id_zona", zoneId) }
+        }
+    }
+
+    /** Creste suprafata totala a unei zone (folosit cand se adauga o lucrare cu cantitate). */
+    suspend fun addTotalSurface(zoneId: Long, delta: Float): Result<Unit> = runCatching {
+        val zone = client.from(TABLE)
+            .select { filter { eq("id_zona", zoneId) } }
+            .decodeSingleOrNull<Zone>()
+            ?: error("Zona $zoneId nu exista")
+        client.from(TABLE).update(
+            { set("suprafata_totala", zone.surface + delta) }
+        ) {
+            filter { eq("id_zona", zoneId) }
+        }
+    }
+
     suspend fun addCompletedSurface(zoneId: Long, delta: Float): Result<Unit> = runCatching {
         val zone = client.from(TABLE)
             .select { filter { eq("id_zona", zoneId) } }

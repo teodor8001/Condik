@@ -92,6 +92,19 @@ class ProjectsViewModel @Inject constructor(
         }
     }
 
+    fun deleteProject(projectId: Long) {
+        viewModelScope.launch {
+            projectRepository.deleteProject(projectId)
+                .onSuccess { loadProjects() }
+                .onFailure { e ->
+                    Log.e(TAG, "Stergerea proiectului a esuat", e)
+                    _uiState.update {
+                        it.copy(errorMessage = e.message ?: "Stergerea proiectului a esuat.")
+                    }
+                }
+        }
+    }
+
     companion object {
         private const val TAG = "ProjectsVM"
     }

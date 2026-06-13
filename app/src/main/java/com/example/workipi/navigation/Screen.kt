@@ -1,8 +1,9 @@
 package com.example.workipi.navigation
 
 sealed class Screen(val route: String) {
-    object Login          : Screen("login")
-    object CreateAccount  : Screen("create_account")
+    object Login           : Screen("login")
+    object CreateCompany   : Screen("create_company")
+    object ActivateAccount : Screen("activate_account")
     object Home           : Screen("home")
     object Proiecte       : Screen("proiecte")
     object AddProject     : Screen("add_project")

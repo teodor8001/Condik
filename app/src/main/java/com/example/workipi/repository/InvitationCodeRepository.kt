@@ -23,6 +23,18 @@ class InvitationCodeRepository @Inject constructor(
             }
             .decodeSingleOrNull()
 
+    /** Codurile de invitatie nefolosite ale unei firme — angajati invitati care nu si-au activat inca contul. */
+    suspend fun getUnusedByCompany(companyId: Long): Result<List<InvitationCode>> = runCatching {
+        client.from(TABLE)
+            .select {
+                filter {
+                    eq("id_firma", companyId)
+                    eq("este_folosit", false)
+                }
+            }
+            .decodeList()
+    }
+
     suspend fun deleteByCode(code: String): Result<Unit> = runCatching {
         client.from(TABLE).delete { filter { eq("cod", code) } }
     }

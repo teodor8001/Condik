@@ -18,25 +18,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import javax.inject.Inject
 
-data class ZoneDraft(
-    val key: Long,
-    val name: String = "",
-    val surface: String = "",
-)
-
 data class AddProjectUiState(
     val title: String = "",
     val address: String = "",
     val budget: String = "",
+    val startDateMillis: Long? = null,
     val endDateMillis: Long? = null,
-    val hasZones: Boolean = true,
     val isOffer: Boolean = false,
-    val zones: List<ZoneDraft> = listOf(ZoneDraft(key = 0)),
     val availableEmployees: List<User> = emptyList(),
     val selectedEmployeeIds: Set<Long> = emptySet(),
     val isLoading: Boolean = false,
@@ -89,53 +83,19 @@ class AddProjectViewModel @Inject constructor(
     fun onBudgetChange(value: String) =
         _uiState.update { it.copy(budget = value.filter { c -> c.isDigit() || c == '.' }, errorMessage = null) }
 
+    fun onStartDateChange(millis: Long?) =
+        _uiState.update { it.copy(startDateMillis = millis, errorMessage = null) }
+
     fun onEndDateChange(millis: Long?) =
         _uiState.update { it.copy(endDateMillis = millis, errorMessage = null) }
 
-    fun onHasZonesChange(value: Boolean) =
-        _uiState.update { it.copy(hasZones = value, errorMessage = null) }
-
     fun onIsOfferChange(value: Boolean) =
         _uiState.update { it.copy(isOffer = value, errorMessage = null) }
-
-    fun onZoneNameChange(key: Long, value: String) =
-        _uiState.update { state ->
-            state.copy(
-                zones = state.zones.map { if (it.key == key) it.copy(name = value) else it },
-                errorMessage = null,
-            )
-        }
-
-    fun onZoneSurfaceChange(key: Long, value: String) =
-        _uiState.update { state ->
-            state.copy(
-                zones = state.zones.map {
-                    if (it.key == key) it.copy(surface = value.filter { c -> c.isDigit() || c == '.' })
-                    else it
-                },
-                errorMessage = null,
-            )
-        }
-
-    fun addZone() = _uiState.update { state ->
-        val newKey = (state.zones.maxOfOrNull { it.key } ?: -1L) + 1L
-        state.copy(zones = state.zones + ZoneDraft(key = newKey))
-    }
-
-    fun removeZone(key: Long) = _uiState.update { state ->
-        if (state.zones.size <= 1) state
-        else state.copy(zones = state.zones.filter { it.key != key })
-    }
 
     fun submit() {
         val state = _uiState.value
         val companyId = MockSession.currentUser?.idCompany
         val budget = state.budget.toFloatOrNull()
-
-        val zonesParsed = state.zones.map { it to it.surface.toFloatOrNull() }
-        val zoneError = if (state.hasZones) {
-            zonesParsed.firstOrNull { (z, s) -> z.name.isBlank() || s == null || s <= 0f }
-        } else null
 
         val error = when {
             companyId == null -> "Nu am putut identifica firma. Reautentifica-te."
@@ -143,8 +103,6 @@ class AddProjectViewModel @Inject constructor(
             state.address.isBlank() -> "Introdu adresa."
             budget == null || budget <= 0f -> "Bugetul trebuie sa fie un numar pozitiv."
             state.endDateMillis == null -> "Alege termenul de finalizare."
-            state.hasZones && state.zones.isEmpty() -> "Adauga cel putin o zona."
-            zoneError != null -> "Fiecare zona trebuie sa aiba nume si suprafata pozitiva."
             else -> null
         }
 
@@ -155,6 +113,11 @@ class AddProjectViewModel @Inject constructor(
 
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
+        // Data de start: cea aleasa sau acum (daca nu s-a ales).
+        val startInstant = state.startDateMillis
+            ?.let { Instant.fromEpochMilliseconds(it) }
+            ?: Clock.System.now()
+
         viewModelScope.launch {
             projectRepository.createProject(
                 ProjectInsert(
@@ -162,6 +125,7 @@ class AddProjectViewModel @Inject constructor(
                     adress = state.address.trim(),
                     budget = budget!!,
                     totalSalaryPerMonth = 0f,
+                    startDate = startInstant,
                     endDate = Instant.fromEpochMilliseconds(state.endDateMillis!!)
                         .toLocalDateTime(TimeZone.UTC).date,
                     companyId = companyId!!,
@@ -170,15 +134,10 @@ class AddProjectViewModel @Inject constructor(
             )
                 .onSuccess { project ->
                     Log.d(TAG, "Proiect creat: id=${project.projectId}")
-                    val zoneInserts = if (state.hasZones) {
-                        state.zones.map { draft ->
-                            ZoneInsert(
-                                projectId = project.projectId,
-                                name = draft.name.trim(),
-                                surface = draft.surface.toFloat(),
-                            )
-                        }
-                    } else {
+                    // Zonele se adauga ulterior din ecranul de detaliu. La creare punem
+                    // doar zona implicita (necesara in DB), pe care se vor atasa lucrarile
+                    // pana cand userul adauga zone reale.
+                    zoneRepository.createZones(
                         listOf(
                             ZoneInsert(
                                 projectId = project.projectId,
@@ -187,9 +146,7 @@ class AddProjectViewModel @Inject constructor(
                                 isImplicit = true,
                             )
                         )
-                    }
-                    zoneRepository.createZones(zoneInserts)
-                        .onFailure { e -> Log.e(TAG, "Zonele nu s-au creat (continuam)", e) }
+                    ).onFailure { e -> Log.e(TAG, "Zona implicita nu s-a creat (continuam)", e) }
 
                     state.selectedEmployeeIds.forEach { userId ->
                         userProjectRepository.assignUser(userId, project.projectId)

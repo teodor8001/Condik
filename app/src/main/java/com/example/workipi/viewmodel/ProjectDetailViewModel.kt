@@ -1,21 +1,21 @@
 package com.example.workipi.viewmodel
 
+import android.provider.MediaStore.UNKNOWN_STRING
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.model.Lucrare
-import com.example.workipi.data.model.Material
-import com.example.workipi.data.model.MaterialInsert
 import com.example.workipi.data.model.History
+import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.Project
+import com.example.workipi.data.model.ProjectStatus
 import com.example.workipi.data.model.User
 import com.example.workipi.data.model.Zone
-import com.example.workipi.data.model.ZoneInsert
+import com.example.workipi.data.model.ZoneHistory
 import com.example.workipi.data.model.ZoneHistoryInsert
-import com.example.workipi.repository.SkillRepository
-import com.example.workipi.repository.MaterialRepository
+import com.example.workipi.data.model.ZoneInsert
 import com.example.workipi.repository.HistoryRepository
 import com.example.workipi.repository.ProjectRepository
+import com.example.workipi.repository.SkillRepository
 import com.example.workipi.repository.UserProjectRepository
 import com.example.workipi.repository.UserRepository
 import com.example.workipi.repository.ZoneHistoryRepository
@@ -26,404 +26,378 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import javax.inject.Inject
-import kotlin.math.max
 
-data class ProjectPontareEntry(
-    val history: History,
-    val userName: String,
-    val lucrareName: String,
-    val lucrareUnit: String,
-    val zoneName: String,
+const val UNKNOWNS = ""
+data class ProjectDetailScreenUi(
+    val name: String = "",
+    val address: String = "",
+    val status: ProjectStatus = ProjectStatus.ACTIV,
+    val progressPercent: Int = 0,
+    val endDate: String = "",
+    val estimatedEndDate: String = "",
+    val finishedQuantity: Double = 0.0,
+    val totalQuantity: Double = 0.0,
+    val pontariCount: Int = 0,
+    val risks: Long = 0,
+    val possibleGains: Double = 0.0,
+    val budget: Double = 0.0,
+    val projectCosts: Double = 0.0,
+    val graphPoints: List<AverageWorkGraphic> = emptyList(),
+    val mixLucrari: List<MixLucrareItem> = emptyList(),
+    val team: List<TeamMemberItem> = emptyList(),
+    val teamSalaryTotal: Double = 0.0,
+    val zoneItems: List<ZoneItem> = emptyList(),
+    val zonePickers: List<ZonePickItem> = emptyList(),
+    val availableSkills: List<Lucrare> = emptyList(),
+    val error: String? = null
 )
 
-data class ProjectLeaderboardEntry(
+data class AverageWorkGraphic(
+    val date: LocalDate,
+    val quantity: Double,
+)
+
+/** O lucrare a proiectului + suprafata totala alocata ei (din zone_lucrari). */
+data class MixLucrareItem(
+    val name: String,
+    val totalQuantity: Double,
+    val unit: String,
+)
+
+/** Un membru al echipei alocate: nume, salariu si ritmul lui mediu (din istoric_pontari). */
+data class TeamMemberItem(
     val userId: Long,
-    val userName: String,
-    val points: Long,
+    val name: String,
+    val salary: Double,
+    val mpPerDay: Double,
 )
 
-data class ZoneLucrareEntry(
-    val zoneId: Long,
-    val lucrareId: Long,
-    val lucrareName: String,
-    val lucrareUnit: String,
-    val totalQuantity: Float,
-    val completedQuantity: Float,
-) {
-    val progress: Float
-        get() = if (totalQuantity <= 0f) 0f else (completedQuantity / totalQuantity).coerceIn(0f, 1f)
-}
+/** O zona a proiectului + cat e finalizat din ea. */
+data class ZoneItem(
+    val id: Long,
+    val name: String,
+    val completedQuantity: Double,
+    val totalQuantity: Double,
+    val percent: Int,
+)
 
-data class ZoneSection(
-    val zone: Zone,
-    val lucrari: List<ZoneLucrareEntry>,
-) {
-    val isImplicit: Boolean get() = zone.isImplicit
-    val progress: Float
-        get() = if (lucrari.isEmpty()) 0f
-        else (lucrari.sumOf { it.progress.toDouble() } / lucrari.size).toFloat()
-}
-
-data class ProjectDetailUiState(
-    val project: Project? = null,
-    val team: List<User> = emptyList(),
-    val zones: List<Zone> = emptyList(),
-    val zoneSections: List<ZoneSection> = emptyList(),
-    val firmaLucrari: List<Lucrare> = emptyList(),
-    val materiale: List<Material> = emptyList(),
-    val pontari: List<ProjectPontareEntry> = emptyList(),
-    val leaderboard: List<ProjectLeaderboardEntry> = emptyList(),
-    val isLoading: Boolean = false,
-    val errorMessage: String? = null,
-) {
-    val hasOnlyImplicitZone: Boolean get() = zones.size == 1 && zones.first().isImplicit
-    val totalSurface: Float get() = zones.filterNot { it.isImplicit }.sumOf { it.surface.toDouble() }.toFloat()
-    val completedSurface: Float
-        get() = zones.filterNot { it.isImplicit }.sumOf { (it.surfaceCompleted ?: 0f).toDouble() }.toFloat()
-    val progress: Float
-        get() = if (zoneSections.isEmpty()) 0f
-        else (zoneSections.sumOf { it.progress.toDouble() } / zoneSections.size).toFloat()
-
-    val materialeTotalCost: Float get() = materiale.sumOf { it.totalCost.toDouble() }.toFloat()
-
-    val salaryCostTotal: Float
-        get() {
-            val p = project ?: return 0f
-            val startLocal = p.startDate.toLocalDateTime(TimeZone.UTC).date
-            val days = max(1, p.endDate.toEpochDays() - startLocal.toEpochDays())
-            val perDayPerEmployee = team.sumOf { (it.salary ?: 0.0) / 30.0 }
-            return (perDayPerEmployee * days).toFloat()
-        }
-}
+/** Zona pentru dropdown-uri (id + nume). */
+data class ZonePickItem(
+    val id: Long,
+    val name: String,
+)
 
 @HiltViewModel
 class ProjectDetailViewModel @Inject constructor(
     private val projectRepository: ProjectRepository,
+    private val zoneRepository: ZoneRepository,
+    private val historyRepository: HistoryRepository,
+    private val zoneHistoryRepository: ZoneHistoryRepository,
+    private val skillRepository: SkillRepository,
     private val userProjectRepository: UserProjectRepository,
     private val userRepository: UserRepository,
-    private val zoneRepository: ZoneRepository,
-    private val zoneHistoryRepository: ZoneHistoryRepository,
-    private val historyRepository: HistoryRepository,
-    private val skillRepository: SkillRepository,
-    private val materialRepository: MaterialRepository,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ProjectDetailUiState())
-    val uiState: StateFlow<ProjectDetailUiState> = _uiState.asStateFlow()
+    private val _uiState: MutableStateFlow<ProjectDetailScreenUi> =
+        MutableStateFlow(ProjectDetailScreenUi())
+    val uiState: StateFlow<ProjectDetailScreenUi> = _uiState.asStateFlow()
+
+    private var currentProjectId: Long? = null
+    private var implicitZoneId: Long? = null
 
     fun load(projectId: Long) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            try {
-                val project = projectRepository.getProjectById(projectId)
-                if (project == null) {
-                    _uiState.update {
-                        it.copy(isLoading = false, errorMessage = "Proiectul nu a fost gasit.")
-                    }
-                    return@launch
+            val project = projectRepository.getProjectById(projectId)
+            if (project == null) {
+                _uiState.update {
+                    it.copy(error = "Proiectul nu exista!")
                 }
-
-                val team = loadTeam(projectId, project.companyId)
-                val zones = zoneRepository.getZonesForProject(projectId).getOrDefault(emptyList())
-                val firmaLucrari = skillRepository
-                    .getSkillsForCompany(project.companyId)
+                Log.e(TAG, "The Project is null")
+            } else {
+                val companyId = project.companyId
+                val zones: List<Zone> = zoneRepository.getZonesForProject(project.projectId)
                     .getOrDefault(emptyList())
-                val materiale = materialRepository
-                    .getByProject(projectId)
+                val zoneIds = zones.map { it.id }
+                val histories: List<History> = historyRepository.getByZones(zoneIds)
                     .getOrDefault(emptyList())
-                val lucrareById = firmaLucrari.associateBy { it.id }
-                val allPontari = if (zones.isEmpty()) emptyList()
-                else historyRepository.getByZones(zones.map { it.id }).getOrDefault(emptyList())
-                val zoneSections = buildZoneSections(zones, lucrareById)
-                val (pontari, leaderboard) =
-                    buildPontariAndLeaderboard(zones, team, allPontari, lucrareById)
-
+                val zoneHistories: List<ZoneHistory> = zoneHistoryRepository.getByZones(zoneIds)
+                    .getOrDefault(emptyList())
+                val skillsById: Map<Long, Lucrare> = skillRepository.getSkillsForCompany(companyId)
+                    .getOrDefault(emptyList())
+                    .associateBy { it.id }
+                val assignedUserIds: List<Long> = userProjectRepository
+                    .getAssignmentsForProject(project.projectId)
+                    .getOrDefault(emptyList())
+                    .map { it.userId }
+                val usersById: Map<Long, User> = userRepository.getEmployeesByCompanyId(companyId)
+                    .getOrDefault(emptyList())
+                    .associateBy { it.idUser }
+                val progressPercent = getProgressPercent(zones)
+                val teamMembers = buildTeam(assignedUserIds, usersById, histories)
+                val realZones = zones.filter { !it.isImplicit }
+                currentProjectId = project.projectId
+                implicitZoneId = zones.firstOrNull { it.isImplicit }?.id
                 _uiState.update {
                     it.copy(
-                        isLoading = false,
-                        project = project,
-                        team = team,
-                        zones = zones,
-                        zoneSections = zoneSections,
-                        firmaLucrari = firmaLucrari,
-                        materiale = materiale,
-                        pontari = pontari,
-                        leaderboard = leaderboard,
-                    )
-                }
-            } catch (e: Throwable) {
-                Log.e(TAG, "Eroare la incarcarea proiectului", e)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = e.message ?: "Nu am putut incarca proiectul.",
+                        name = project.title,
+                        address = project.adress,
+                        status = computeStatus(project, progressPercent),
+                        progressPercent = progressPercent,
+                        endDate = project.endDate.formatRoLong(),
+                        estimatedEndDate = getEstimatedEndDate(project, zones),
+                        finishedQuantity = getFinishedQuantity(project, zones),
+                        totalQuantity = zones.sumOf { zone -> zone.surface.toDouble() },
+                        pontariCount = histories.size,
+                        risks = 0,
+                        possibleGains = getPossibleGains(project),
+                        budget = (project.budget)?.toDouble() ?: 0.0,
+                        projectCosts = getProjectCosts(project),
+                        graphPoints = getPointsForAverageWorkGraphic(histories),
+                        mixLucrari = buildMixLucrari(zoneHistories, skillsById),
+                        team = teamMembers,
+                        teamSalaryTotal = teamMembers.sumOf { it.salary },
+                        zoneItems = buildZones(zones),
+                        zonePickers = realZones.map { zone -> ZonePickItem(zone.id, zone.name ?: "Zona") },
+                        availableSkills = skillRepository.getSkillsForCompany(companyId).getOrDefault(emptyList()),
+                        error = null
                     )
                 }
             }
+
         }
+
     }
 
-    fun addZone(projectId: Long, name: String, surface: Float) {
-        if (name.isBlank() || surface <= 0f) {
-            _uiState.update { it.copy(errorMessage = "Numele si suprafata sunt obligatorii.") }
-            return
-        }
+    // ---- Mutatii: zone si lucrari (se adauga/editeaza din popup-urile ecranului de detaliu) ----
+
+    fun addZone(name: String) {
+        val pid = currentProjectId ?: return
+        if (name.isBlank()) return
         viewModelScope.launch {
             zoneRepository.createZone(
-                ZoneInsert(projectId = projectId, name = name.trim(), surface = surface)
-            )
-                .onSuccess { reload(projectId) }
-                .onFailure { e ->
-                    Log.e(TAG, "Eroare la creare zona", e)
-                    _uiState.update {
-                        it.copy(errorMessage = e.message ?: "Crearea zonei a esuat.")
-                    }
-                }
+                ZoneInsert(projectId = pid, name = name.trim(), surface = 0f, isImplicit = false)
+            ).onFailure { Log.e(TAG, "Adaugare zona esuata", it) }
+            load(pid)
         }
     }
 
-    fun addLucrareToZone(zoneId: Long, lucrareId: Long, quantity: Float) {
-        if (quantity <= 0f) {
-            _uiState.update { it.copy(errorMessage = "Cantitatea trebuie sa fie pozitiva.") }
-            return
-        }
-        val projectId = _uiState.value.project?.projectId ?: return
+    fun updateZone(zoneId: Long, name: String, surface: Float) {
+        val pid = currentProjectId ?: return
         viewModelScope.launch {
-            zoneHistoryRepository.add(
-                ZoneHistoryInsert(zoneId = zoneId, lucrareId = lucrareId, totalQuantity = quantity)
-            )
-                .onSuccess { reload(projectId) }
-                .onFailure { e ->
-                    Log.e(TAG, "Eroare la adaugare lucrare pe zona", e)
-                    _uiState.update {
-                        it.copy(errorMessage = e.message ?: "Adaugarea lucrarii a esuat.")
-                    }
-                }
+            zoneRepository.updateZone(zoneId, name.trim(), surface)
+                .onFailure { Log.e(TAG, "Editare zona esuata", it) }
+            load(pid)
         }
     }
 
     fun deleteZone(zoneId: Long) {
-        val projectId = _uiState.value.project?.projectId ?: return
+        val pid = currentProjectId ?: return
         viewModelScope.launch {
             zoneRepository.deleteZone(zoneId)
-                .onSuccess { reload(projectId) }
-                .onFailure { e ->
-                    Log.e(TAG, "Eroare la stergere zona", e)
-                    _uiState.update {
-                        it.copy(errorMessage = e.message ?: "Stergerea zonei a esuat.")
-                    }
-                }
+                .onFailure { Log.e(TAG, "Stergere zona esuata", it) }
+            load(pid)
         }
     }
 
-    fun acceptOffer(onAccepted: () -> Unit) {
-        val projectId = _uiState.value.project?.projectId ?: return
+    /**
+     * Adauga o lucrare (cu cantitate) pe o zona. Daca proiectul n-are zone reale, se foloseste
+     * zona implicita. Cantitatea totala a proiectului creste (incrementam suprafata zonei).
+     */
+    fun addLucrare(zoneId: Long?, lucrareId: Long, quantity: Float) {
+        val pid = currentProjectId ?: return
+        val targetZone = zoneId ?: implicitZoneId ?: return
+        if (quantity <= 0f) return
         viewModelScope.launch {
-            projectRepository.acceptOffer(projectId)
-                .onSuccess { onAccepted() }
-                .onFailure { e ->
-                    Log.e(TAG, "Eroare la acceptare oferta", e)
-                    _uiState.update {
-                        it.copy(errorMessage = e.message ?: "Acceptarea ofertei a esuat.")
-                    }
-                }
+            zoneHistoryRepository.add(
+                ZoneHistoryInsert(zoneId = targetZone, lucrareId = lucrareId, totalQuantity = quantity)
+            ).onFailure { Log.e(TAG, "Adaugare lucrare esuata", it) }
+            zoneRepository.addTotalSurface(targetZone, quantity)
+                .onFailure { Log.e(TAG, "Incrementare suprafata esuata", it) }
+            load(pid)
         }
     }
 
-    fun deleteProject(onDeleted: () -> Unit) {
-        val projectId = _uiState.value.project?.projectId ?: return
-        Log.d(TAG, "deleteProject: incep stergerea pentru id=$projectId")
-        viewModelScope.launch {
-            projectRepository.deleteProject(projectId)
-                .onSuccess {
-                    Log.d(TAG, "deleteProject: verific daca proiectul mai exista...")
-                    val stillThere = projectRepository.getProjectById(projectId)
-                    if (stillThere != null) {
-                        val msg = "Stergerea pare sa fi reusit dar proiectul inca exista (posibil RLS sau policy blocheaza)."
-                        Log.e(TAG, msg)
-                        _uiState.update { it.copy(errorMessage = msg) }
-                    } else {
-                        Log.d(TAG, "deleteProject: confirmat sters")
-                        onDeleted()
-                    }
-                }
-                .onFailure { e ->
-                    Log.e(TAG, "Eroare la stergere proiect", e)
-                    _uiState.update {
-                        it.copy(errorMessage = e.message ?: "Stergerea proiectului a esuat.")
-                    }
-                }
-        }
-    }
-
-    fun removeLucrareFromZone(zoneId: Long, lucrareId: Long) {
-        val projectId = _uiState.value.project?.projectId ?: return
-        viewModelScope.launch {
-            zoneHistoryRepository.remove(zoneId, lucrareId)
-                .onSuccess { reload(projectId) }
-                .onFailure { e ->
-                    Log.e(TAG, "Eroare la stergere lucrare", e)
-                    _uiState.update {
-                        it.copy(errorMessage = e.message ?: "Stergerea a esuat.")
-                    }
-                }
-        }
-    }
-
-    fun addMaterial(name: String, quantity: Float, unit: String, unitCost: Float) {
-        val projectId = _uiState.value.project?.projectId ?: return
-        if (name.isBlank() || quantity <= 0f || unit.isBlank() || unitCost < 0f) {
-            _uiState.update { it.copy(errorMessage = "Completeaza toate campurile cu valori valide.") }
-            return
-        }
-        viewModelScope.launch {
-            materialRepository.add(
-                MaterialInsert(
-                    projectId = projectId,
-                    name = name.trim(),
-                    quantity = quantity,
-                    unit = unit.trim(),
-                    unitCost = unitCost,
-                )
-            )
-                .onSuccess { reload(projectId) }
-                .onFailure { e ->
-                    Log.e(TAG, "Adaugare material esuata", e)
-                    _uiState.update { it.copy(errorMessage = e.message ?: "Adaugarea materialului a esuat.") }
-                }
-        }
-    }
-
-    fun updateMaterial(id: Long, name: String, quantity: Float, unit: String, unitCost: Float) {
-        val projectId = _uiState.value.project?.projectId ?: return
-        if (name.isBlank() || quantity <= 0f || unit.isBlank() || unitCost < 0f) {
-            _uiState.update { it.copy(errorMessage = "Completeaza toate campurile cu valori valide.") }
-            return
-        }
-        viewModelScope.launch {
-            materialRepository.update(id, name.trim(), quantity, unit.trim(), unitCost)
-                .onSuccess { reload(projectId) }
-                .onFailure { e ->
-                    Log.e(TAG, "Update material esuat", e)
-                    _uiState.update { it.copy(errorMessage = e.message ?: "Actualizarea materialului a esuat.") }
-                }
-        }
-    }
-
-    fun removeMaterial(id: Long) {
-        val projectId = _uiState.value.project?.projectId ?: return
-        viewModelScope.launch {
-            materialRepository.remove(id)
-                .onSuccess { reload(projectId) }
-                .onFailure { e ->
-                    Log.e(TAG, "Stergere material esuata", e)
-                    _uiState.update { it.copy(errorMessage = e.message ?: "Stergerea materialului a esuat.") }
-                }
-        }
-    }
-
-    fun toggleCheckIn(userId: Long) {
-        val state = _uiState.value
-        val current = state.team.firstOrNull { it.idUser == userId } ?: return
-        val newValue = !current.isCheckedIn
-        _uiState.update { s ->
-            s.copy(team = s.team.map { if (it.idUser == userId) it.copy(isCheckedIn = newValue) else it })
-        }
-        viewModelScope.launch {
-            userRepository.setCheckedIn(userId, newValue)
-                .onFailure { e ->
-                    Log.e(TAG, "Toggle check-in esuat", e)
-                    _uiState.update { s ->
-                        s.copy(team = s.team.map { if (it.idUser == userId) it.copy(isCheckedIn = !newValue) else it })
-                    }
-                }
-        }
-    }
-
-    private fun reload(projectId: Long) = load(projectId)
-
-    private suspend fun buildZoneSections(
-        zones: List<Zone>,
-        lucrareById: Map<Long, Lucrare>,
-    ): List<ZoneSection> {
-        if (zones.isEmpty()) return emptyList()
-        val zoneLucrari = zoneHistoryRepository
-            .getByZones(zones.map { it.id })
-            .getOrDefault(emptyList())
-
-        return zones.map { zone ->
-            val entries = zoneLucrari
-                .filter { it.zoneId == zone.id }
-                .map { zl ->
-                    val lucrare = lucrareById[zl.lucrareId]
-                    ZoneLucrareEntry(
-                        zoneId = zl.zoneId,
-                        lucrareId = zl.lucrareId,
-                        lucrareName = lucrare?.name ?: "Lucrare #${zl.lucrareId}",
-                        lucrareUnit = lucrare?.unit ?: "",
-                        totalQuantity = zl.totalQuantity,
-                        completedQuantity = zl.completedQuantity,
-                    )
-                }
-            ZoneSection(zone = zone, lucrari = entries)
-        }
-    }
-
-    private fun buildPontariAndLeaderboard(
-        zones: List<Zone>,
-        team: List<User>,
-        pontari: List<History>,
-        lucrareById: Map<Long, Lucrare>,
-    ): Pair<List<ProjectPontareEntry>, List<ProjectLeaderboardEntry>> {
-        if (pontari.isEmpty()) return emptyList<ProjectPontareEntry>() to emptyList()
-        val zoneById = zones.associateBy { it.id }
-        val userById = team.associateBy { it.idUser }
-
-        val entries = pontari.map { p ->
-            ProjectPontareEntry(
-                history = p,
-                userName = userById[p.userId]?.fullName ?: "Utilizator #${p.userId}",
-                lucrareName = lucrareById[p.idLucrare]?.name ?: "—",
-                lucrareUnit = lucrareById[p.idLucrare]?.unit ?: "",
-                zoneName = zoneById[p.idZona]?.name ?: "Zona",
+    /** Zonele reale ale proiectului (fara cea implicita) + procentul finalizat. */
+    private fun buildZones(zones: List<Zone>): List<ZoneItem> =
+        zones.filter { !it.isImplicit }.map { zone ->
+            val total = zone.surface.toDouble()
+            val completed = (zone.surfaceCompleted ?: 0f).toDouble()
+            ZoneItem(
+                id = zone.id,
+                name = zone.name ?: "Zona",
+                completedQuantity = completed,
+                totalQuantity = total,
+                percent = if (total > 0) (completed / total * 100).toInt() else 0,
             )
         }
 
-        val leaderboard = pontari
-            .groupBy { it.userId }
-            .map { (userId, userPontari) ->
-                val pts = userPontari.sumOf { p ->
-                    val lucrarePoints = lucrareById[p.idLucrare]?.points ?: 0L
-                    (lucrarePoints * p.quantity).toLong()
-                }
-                ProjectLeaderboardEntry(
-                    userId = userId,
-                    userName = userById[userId]?.fullName ?: "Utilizator #$userId",
-                    points = pts,
+    /** Grupeaza zone_lucrari pe lucrare si insumeaza suprafata totala alocata fiecareia. */
+    private fun buildMixLucrari(
+        zoneHistories: List<ZoneHistory>,
+        skillsById: Map<Long, Lucrare>,
+    ): List<MixLucrareItem> =
+        zoneHistories
+            .groupBy { it.lucrareId }
+            .map { (lucrareId, rows) ->
+                val skill = skillsById[lucrareId]
+                MixLucrareItem(
+                    name = skill?.name ?: "Lucrare #$lucrareId",
+                    totalQuantity = rows.sumOf { it.totalQuantity.toDouble() },
+                    unit = skill?.unit ?: "mp",
                 )
             }
-            .sortedByDescending { it.points }
+            .sortedByDescending { it.totalQuantity }
 
-        return entries to leaderboard
+    /** Pentru fiecare angajat alocat: salariul si ritmul mediu (mp/zi) din pontari. */
+    private fun buildTeam(
+        assignedUserIds: List<Long>,
+        usersById: Map<Long, User>,
+        histories: List<History>,
+    ): List<TeamMemberItem> {
+        val historiesByUser = histories.groupBy { it.userId }
+        return assignedUserIds.mapNotNull { userId ->
+            val user = usersById[userId]
+            // Echipa = doar angajati si ingineri, fara admini.
+            if (user?.role?.equals("admin", ignoreCase = true) == true) return@mapNotNull null
+            val userHistories = historiesByUser[userId].orEmpty()
+            val workedDays = userHistories.mapNotNull { it.workDate }.distinct().size
+            val totalQuantity = userHistories.sumOf { it.quantity.toDouble() }
+            val mpPerDay = if (workedDays > 0) totalQuantity / workedDays else 0.0
+            TeamMemberItem(
+                userId = userId,
+                name = user?.fullName ?: "Utilizator #$userId",
+                salary = user?.salary ?: 0.0,
+                mpPerDay = mpPerDay,
+            )
+        }.sortedByDescending { it.mpPerDay }
     }
 
-    private suspend fun loadTeam(projectId: Long, companyId: Long): List<User> {
-        val assignments = userProjectRepository
-            .getAssignmentsForProject(projectId)
-            .getOrDefault(emptyList())
-        if (assignments.isEmpty()) return emptyList()
+    private fun computeStatus(project: Project, progressPercent: Int): ProjectStatus {
+        val today = Clock.System.now().toLocalDateTime(timeZone).date
+        return when {
+            project.isOffer          -> ProjectStatus.OFERTA
+            progressPercent >= 100   -> ProjectStatus.FINALIZAT
+            project.endDate < today  -> ProjectStatus.INTARZIAT
+            else                     -> ProjectStatus.ACTIV
+        }
+    }
 
-        val assignedIds = assignments.map { it.userId }.toSet()
-        val employees = userRepository
-            .getEmployeesByCompanyId(companyId)
-            .getOrDefault(emptyList())
-        return employees.filter { it.idUser in assignedIds }
+    private fun getDaysSinceProjectIsActive(project: Project): Int {
+        val startDate = project.startDate.toLocalDateTime(timeZone).date
+        val today = Clock.System.now().toLocalDateTime(timeZone).date
+        val daySinceProjectIsActive = startDate.daysUntil(today)
+
+        return daySinceProjectIsActive
+    }
+
+    private fun getTotalProjectDays(project: Project): Int {
+        val startDate = project.startDate.toLocalDateTime(timeZone).date
+        val endDate = project.endDate
+        val totalDays = startDate.daysUntil(endDate)
+
+        return totalDays
+    }
+
+    private fun getEstimatedEndDate(project: Project, zones: List<Zone>): String {
+        val surfaceCompletedInProject: Double = getFinishedQuantity(project, zones)
+        val today: LocalDate = Clock.System.now().toLocalDateTime(timeZone).date
+        val daysSinceProjectIsActive = getDaysSinceProjectIsActive(project)
+
+        if (daysSinceProjectIsActive == 0) return "Unpredictable"
+
+        val averageCompletedSurface = surfaceCompletedInProject / daysSinceProjectIsActive
+        val surfaceLeft = getSurfaceLeft(project, zones)
+
+        if (averageCompletedSurface == 0.0) return "Unpredictable"
+
+        val estimatedDaysUntilEnd = surfaceLeft / averageCompletedSurface
+        val estimatedEndDate: LocalDate = today
+            .plus(estimatedDaysUntilEnd.toInt(), DateTimeUnit.DAY)
+
+        return estimatedEndDate.formatRoLong()
+    }
+
+    private fun getFinishedQuantity(project: Project, zones: List<Zone>): Double {
+        val surfaceCompletedInProject: Double = zones
+            .map { zone -> zone.surfaceCompleted ?: 0.0f}
+            .sumOf { it.toDouble() }
+        return surfaceCompletedInProject
+    }
+
+    private fun getSurfaceLeft(project: Project, zones: List<Zone>): Double {
+        val totalProjectSurface = zones
+            .sumOf { it.surface.toDouble() }
+        val completedProjectSurface = zones
+            .sumOf { it.surfaceCompleted?.toDouble() ?: 0.0 }
+
+        return totalProjectSurface - completedProjectSurface
+    }
+
+    fun getProgressPercent(zones: List<Zone>): Int {
+        val totalQuantity: Double = zones.sumOf { zone ->
+            zone.surface.toDouble()
+        }
+        val finishedQuantity: Double =  zones.sumOf { zone ->
+            zone.surfaceCompleted?.toDouble() ?: 0.0
+        }
+
+        if (totalQuantity > 0 && finishedQuantity > 0) {
+            val percent: Int = (finishedQuantity / totalQuantity * 100).toInt()
+            return percent
+        }
+
+        return 0
+
+    }
+
+    // in the future we might need to refactor this method, by predicting the gains
+    private fun getPossibleGains(project: Project): Double {
+        val budget = project.budget ?: 0f
+        // the formula will change over time when we will add the tools and rents
+        val costs = getProjectCosts(project)
+
+        return budget - costs
+    }
+
+    fun getProjectCosts(project: Project): Double {
+        val salaryPerDay = project.totalSalaryPerMonth / 30
+        // the formula will change over time when we will add the tools and rents
+        val costs = getTotalProjectDays(project) * salaryPerDay
+
+        return costs.toDouble()
+    }
+
+    fun getPointsForAverageWorkGraphic(histories: List<History>): List<AverageWorkGraphic> {
+        return histories
+            .filter { it.workDate != null }
+            .groupBy { it.workDate!! }
+            .map { (date, entries) ->
+                AverageWorkGraphic(
+                    date = date,
+                    quantity = entries.sumOf { it.quantity.toDouble() },
+                )
+            }
+            .sortedBy { it.date }
     }
 
     companion object {
         private const val TAG = "ProjectDetailVM"
+        val timeZone = TimeZone.currentSystemDefault()
+        private val MonthsRo = listOf(
+            "ianuarie", "februarie", "martie", "aprilie", "mai", "iunie",
+            "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie",
+        )
+
+        private fun LocalDate.formatRoLong(): String =
+            "$dayOfMonth ${MonthsRo[monthNumber - 1]} $year"
+
     }
 }

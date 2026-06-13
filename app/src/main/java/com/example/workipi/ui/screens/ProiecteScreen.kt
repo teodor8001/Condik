@@ -9,8 +9,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.ui.text.drawText
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -44,6 +47,13 @@ import kotlin.math.roundToInt
 private enum class ProjectFilter { ACTIVE, INCHEIATE, TOATE }
 private enum class GanttView { DAY, WEEK, MONTH }
 
+// Coloanele sortabile ale tabelului, in aceeasi ordine ca labelurile din TableHeader.
+private enum class ProjectSort { NAME, PROGRESS, SURFACE, MP_PER_DAY, REVISIONS, RISK }
+private val sortColumns = listOf(
+    ProjectSort.NAME, ProjectSort.PROGRESS, ProjectSort.SURFACE,
+    ProjectSort.MP_PER_DAY, ProjectSort.REVISIONS, ProjectSort.RISK,
+)
+
 @Composable
 fun ProjectsScreen(
     navController: NavController,
@@ -52,6 +62,9 @@ fun ProjectsScreen(
     val state by viewModel.uiState.collectAsState()
     val openDrawer = LocalOpenDrawer.current
     var filter by remember { mutableStateOf(ProjectFilter.ACTIVE) }
+    var projectToDelete by remember { mutableStateOf<ProjectWithProgress?>(null) }
+    var sortColumn by remember { mutableStateOf<ProjectSort?>(null) }
+    var sortAsc by remember { mutableStateOf(true) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.loadProjects() }
 
@@ -62,6 +75,19 @@ fun ProjectsScreen(
             ProjectFilter.INCHEIATE -> status == ProjectStatus.FINALIZAT
             ProjectFilter.TOATE     -> true
         }
+    }
+
+    val sorted = remember(filtered, sortColumn, sortAsc) {
+        val base = when (sortColumn) {
+            null                    -> filtered
+            ProjectSort.NAME        -> filtered.sortedBy { it.project.title.lowercase() }
+            ProjectSort.PROGRESS    -> filtered.sortedBy { it.progress }
+            ProjectSort.SURFACE     -> filtered.sortedBy { it.completedSurface }
+            ProjectSort.MP_PER_DAY  -> filtered.sortedBy { it.mpPerDay }
+            ProjectSort.REVISIONS   -> filtered.sortedBy { it.revisionsToDo }
+            ProjectSort.RISK        -> filtered.sortedBy { riskRank(it) }
+        }
+        if (sortColumn != null && !sortAsc) base.reversed() else base
     }
 
     Box(
@@ -107,11 +133,18 @@ fun ProjectsScreen(
             GanttChartCard(items = state.projects)
 
             ProjectsTableCard(
-                items = filtered,
+                items = sorted,
                 filter = filter,
                 onFilterChange = { filter = it },
                 onRowClick = { id ->
                     navController.navigate(Screen.ProjectDetail.createRoute(id))
+                },
+                onDelete = { projectToDelete = it },
+                sortColumn = sortColumn,
+                sortAsc = sortAsc,
+                onSort = { col ->
+                    if (sortColumn == col) sortAsc = !sortAsc
+                    else { sortColumn = col; sortAsc = true }
                 },
             )
 
@@ -137,6 +170,35 @@ fun ProjectsScreen(
         ) {
             Icon(imageVector = Icons.Filled.Add, contentDescription = "Adauga proiect")
         }
+    }
+
+    projectToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { projectToDelete = null },
+            title = { Text("Esti sigur?") },
+            text = { Text("Proiectul \"${target.project.title}\" va fi sters definitiv.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteProject(target.project.projectId)
+                        projectToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                ) { Text("Da") }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { projectToDelete = null },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                ) { Text("Nu") }
+            },
+        )
     }
 }
 
@@ -532,6 +594,10 @@ private fun ProjectsTableCard(
     filter: ProjectFilter,
     onFilterChange: (ProjectFilter) -> Unit,
     onRowClick: (Long) -> Unit,
+    onDelete: (ProjectWithProgress) -> Unit,
+    sortColumn: ProjectSort?,
+    sortAsc: Boolean,
+    onSort: (ProjectSort) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -557,7 +623,7 @@ private fun ProjectsTableCard(
                 modifier = Modifier
                     .horizontalScroll(rememberScrollState()),
             ) {
-                TableHeader()
+                TableHeader(sortColumn = sortColumn, sortAsc = sortAsc, onSort = onSort)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 if (items.isEmpty()) {
                     Box(
@@ -574,7 +640,11 @@ private fun ProjectsTableCard(
                     }
                 } else {
                     items.forEach { item ->
-                        TableRow(item, onClick = { onRowClick(item.project.projectId) })
+                        TableRow(
+                            item = item,
+                            onClick = { onRowClick(item.project.projectId) },
+                            onDelete = { onDelete(item) },
+                        )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                     }
                 }
@@ -607,28 +677,54 @@ private fun FilterChips(filter: ProjectFilter, onChange: (ProjectFilter) -> Unit
 
 // Latimi fixe pe coloane (in dp) — totalizeaza ~840dp; pe ecran mic scroll orizontal
 private val colWidths = listOf(180.dp, 120.dp, 140.dp, 110.dp, 110.dp, 180.dp)
+private val deleteColWidth = 56.dp
 
 @Composable
-private fun TableHeader() {
+private fun TableHeader(
+    sortColumn: ProjectSort?,
+    sortAsc: Boolean,
+    onSort: (ProjectSort) -> Unit,
+) {
     val labels = listOf(
         "Nume proiect", "Procent progres", "Mp realizati / total",
         "Medie Mp/zi", "Nr. revizii", "Riscuri"
     )
     Row(modifier = Modifier.padding(vertical = 10.dp)) {
         labels.forEachIndexed { i, label ->
-            Text(
-                text = label,
-                modifier = Modifier.width(colWidths[i]),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            val col = sortColumns[i]
+            Row(
+                modifier = Modifier
+                    .width(colWidths[i])
+                    .clickable { onSort(col) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = label,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                if (sortColumn == col) {
+                    Icon(
+                        imageVector = if (sortAsc) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                        contentDescription = if (sortAsc) "crescator" else "descrescator",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .padding(start = 2.dp)
+                            .size(14.dp),
+                    )
+                }
+            }
         }
+        Spacer(modifier = Modifier.width(deleteColWidth))
     }
 }
 
 @Composable
-private fun TableRow(item: ProjectWithProgress, onClick: () -> Unit) {
+private fun TableRow(item: ProjectWithProgress, onClick: () -> Unit, onDelete: () -> Unit) {
     Row(
         modifier = Modifier
             .clickable(onClick = onClick)
@@ -666,6 +762,18 @@ private fun TableRow(item: ProjectWithProgress, onClick: () -> Unit) {
         Box(modifier = Modifier.width(colWidths[5])) {
             RiskBadge(item)
         }
+        Box(
+            modifier = Modifier.width(deleteColWidth),
+            contentAlignment = Alignment.Center,
+        ) {
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Outlined.Delete,
+                    contentDescription = "Sterge proiect",
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
     }
 }
 
@@ -694,6 +802,24 @@ private fun RiskBadge(item: ProjectWithProgress) {
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
         Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = fg)
+    }
+}
+
+// Rang de risc pentru sortare (mai mare = mai riscant) — aceeasi logica ca RiskBadge.
+private fun riskRank(item: ProjectWithProgress): Int {
+    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    val start = item.project.startDate.toLocalDateTime(TimeZone.currentSystemDefault()).date
+    val rate = item.mpPerDay
+    val remaining = (item.totalSurface - item.completedSurface).coerceAtLeast(0f)
+    val estimatedEnd = if (item.progress >= 1f || rate <= 0f || item.totalSurface <= 0f) null
+        else today.plusDays((remaining / rate).toInt())
+    return when {
+        start > today                        -> 1
+        item.progress >= 1f                  -> 0
+        item.project.endDate < today         -> 4
+        estimatedEnd == null                 -> 2
+        estimatedEnd > item.project.endDate  -> 4
+        else                                 -> 3
     }
 }
 

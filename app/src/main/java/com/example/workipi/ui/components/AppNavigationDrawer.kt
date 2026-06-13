@@ -18,11 +18,13 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.workipi.data.mock.MockSession
 import com.example.workipi.data.model.UserRole
 import com.example.workipi.navigation.Screen
+import com.example.workipi.viewmodel.SessionViewModel
 import kotlinx.coroutines.launch
 
 // ---------------------------------------------------------------------------
@@ -71,6 +73,7 @@ private fun DrawerContent(
         UserRole.ANGAJAT -> angajatItems
         else             -> adminItems
     }
+    val sessionViewModel: SessionViewModel = hiltViewModel()
 
     Column(
         modifier = Modifier
@@ -130,9 +133,10 @@ private fun DrawerContent(
                         onItemClick()
                         if (currentRoute != item.screen.route) {
                             navController.navigate(item.screen.route) {
-                                popUpTo(Screen.Home.route) { saveState = true }
+                                // Curata back stack-ul pana la Home, ca sa nu ramana
+                                // ecrane de detaliu (ex. ProjectDetail) deasupra destinatiei.
+                                popUpTo(Screen.Home.route)
                                 launchSingleTop = true
-                                restoreState = true
                             }
                         }
                     },
@@ -237,9 +241,11 @@ private fun DrawerContent(
                         },
                         onClick = {
                             menuExpanded = false
-                            MockSession.currentUser = null
-                            navController.navigate(Screen.Login.route) {
-                                popUpTo(0) { inclusive = true }
+                            onCloseDrawer()
+                            sessionViewModel.logout {
+                                navController.navigate(Screen.Login.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
                         }
                     )
@@ -259,7 +265,11 @@ fun AppNavigationDrawer(
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute   = backStackEntry?.destination?.route
-    val authRoutes     = setOf(Screen.Login.route, Screen.CreateAccount.route)
+    val authRoutes     = setOf(
+        Screen.Login.route,
+        Screen.CreateCompany.route,
+        Screen.ActivateAccount.route,
+    )
     val showDrawer     = currentRoute != null && currentRoute !in authRoutes
 
     if (!showDrawer) {

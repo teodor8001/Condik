@@ -28,7 +28,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.workipi.navigation.Screen
 import com.example.workipi.viewmodel.AddProjectViewModel
-import com.example.workipi.viewmodel.ZoneDraft
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -43,6 +42,7 @@ fun AddProjectScreen(
     val focusManager = LocalFocusManager.current
     val state by viewModel.uiState.collectAsState()
 
+    var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.createdProject) {
@@ -144,31 +144,17 @@ fun AddProjectScreen(
                     )
 
                     DateField(
+                        label = "Data de start",
+                        millis = state.startDateMillis,
+                        onClick = { showStartDatePicker = true },
+                    )
+
+                    DateField(
                         label = "Termen finalizare",
                         millis = state.endDateMillis,
                         onClick = { showEndDatePicker = true },
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            HasZonesToggleCard(
-                hasZones = state.hasZones,
-                onChange = viewModel::onHasZonesChange,
-            )
-
-            if (state.hasZones) {
-                Spacer(modifier = Modifier.height(16.dp))
-                ZonesCard(
-                    zones = state.zones,
-                    totalSurface = state.zones.sumOf { (it.surface.toFloatOrNull() ?: 0f).toDouble() },
-                    onNameChange = viewModel::onZoneNameChange,
-                    onSurfaceChange = viewModel::onZoneSurfaceChange,
-                    onAddZone = viewModel::addZone,
-                    onRemoveZone = viewModel::removeZone,
-                    focusManager = focusManager,
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -214,6 +200,17 @@ fun AddProjectScreen(
                 }
             }
         }
+    }
+
+    if (showStartDatePicker) {
+        DatePickerSheet(
+            initialMillis = state.startDateMillis,
+            onDismiss = { showStartDatePicker = false },
+            onConfirm = { millis ->
+                viewModel.onStartDateChange(millis)
+                showStartDatePicker = false
+            },
+        )
     }
 
     if (showEndDatePicker) {
@@ -319,157 +316,6 @@ private fun EmployeesCard(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun HasZonesToggleCard(
-    hasZones: Boolean,
-    onChange: (Boolean) -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Proiect cu zone",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = if (hasZones)
-                        "Lucrarile se vor adauga pe fiecare zona."
-                    else
-                        "Lucrarile se vor adauga direct pe proiect.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Switch(checked = hasZones, onCheckedChange = onChange)
-        }
-    }
-}
-
-@Composable
-private fun ZonesCard(
-    zones: List<ZoneDraft>,
-    totalSurface: Double,
-    onNameChange: (Long, String) -> Unit,
-    onSurfaceChange: (Long, String) -> Unit,
-    onAddZone: () -> Unit,
-    onRemoveZone: (Long) -> Unit,
-    focusManager: androidx.compose.ui.focus.FocusManager,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column {
-                    Text(
-                        text = "Zone proiect",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        text = "Total suprafata: ${totalSurface.toInt()} mp",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                FilledTonalButton(
-                    onClick = onAddZone,
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Adauga zona")
-                }
-            }
-
-            zones.forEach { zone ->
-                ZoneRow(
-                    zone = zone,
-                    canRemove = zones.size > 1,
-                    onNameChange = { onNameChange(zone.key, it) },
-                    onSurfaceChange = { onSurfaceChange(zone.key, it) },
-                    onRemove = { onRemoveZone(zone.key) },
-                    focusManager = focusManager,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ZoneRow(
-    zone: ZoneDraft,
-    canRemove: Boolean,
-    onNameChange: (String) -> Unit,
-    onSurfaceChange: (String) -> Unit,
-    onRemove: () -> Unit,
-    focusManager: androidx.compose.ui.focus.FocusManager,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedTextField(
-            value = zone.name,
-            onValueChange = onNameChange,
-            label = { Text("Nume") },
-            singleLine = true,
-            modifier = Modifier.weight(2f),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-            shape = RoundedCornerShape(10.dp),
-        )
-        OutlinedTextField(
-            value = zone.surface,
-            onValueChange = onSurfaceChange,
-            label = { Text("mp") },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Decimal,
-                imeAction = ImeAction.Next,
-            ),
-            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-            shape = RoundedCornerShape(10.dp),
-        )
-        IconButton(
-            onClick = onRemove,
-            enabled = canRemove,
-            modifier = Modifier.size(32.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "Sterge zona",
-                tint = if (canRemove) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

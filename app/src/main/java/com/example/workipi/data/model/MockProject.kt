@@ -26,6 +26,7 @@ data class ProjectInsert(
     @SerialName("denumire") val title: String,
     @SerialName("adresa") val adress: String,
     @SerialName("costuri_salarii") val totalSalaryPerMonth: Float,
+    @SerialName("termen_inceput") val startDate: Instant,
     @SerialName("termen_finalizare") val endDate: LocalDate,
     @SerialName("buget") val budget: Float,
     @SerialName("id_firma") val companyId: Long,

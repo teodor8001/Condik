@@ -20,6 +20,17 @@ class AuthRepository @Inject constructor(
     private val codeRepository: InvitationCodeRepository
 ) {
 
+    /**
+     * Restaureaza sesiunea salvata local de Supabase Auth (daca exista) si returneaza
+     * profilul utilizatorului. Returneaza null daca nu exista sesiune valida.
+     * Folosit la pornirea aplicatiei ca sa ramana userul logat.
+     */
+    suspend fun restoreSession(): User? {
+        client.auth.awaitInitialization()
+        val authUserId = client.auth.currentUserOrNull()?.id ?: return null
+        return userRepository.findByAuthId(authUserId)
+    }
+
     suspend fun signIn(email: String, password: String): Result<User> = runCatching {
         client.auth.signInWith(Email) {
             this.email = email.trim()
