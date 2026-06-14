@@ -53,10 +53,12 @@ class AngajatiViewModel @Inject constructor(
 
             employeesResult
                 .onSuccess { list ->
+                    // Lista de angajati nu include adminii.
+                    val employees = list.filter { it.role?.equals("admin", ignoreCase = true) != true }
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            employees = list,
+                            employees = employees,
                             pendingInvites = pendingInvites,
                         )
                     }

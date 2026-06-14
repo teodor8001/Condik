@@ -4,8 +4,10 @@ import android.provider.MediaStore.UNKNOWN_STRING
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.workipi.data.mock.MockSession
 import com.example.workipi.data.model.History
 import com.example.workipi.data.model.Lucrare
+import com.example.workipi.data.model.LucrareInsert
 import com.example.workipi.data.model.Project
 import com.example.workipi.data.model.ProjectStatus
 import com.example.workipi.data.model.User
@@ -51,18 +53,27 @@ data class ProjectDetailScreenUi(
     val budget: Double = 0.0,
     val projectCosts: Double = 0.0,
     val graphPoints: List<AverageWorkGraphic> = emptyList(),
+    val graphSeries: List<ChartSeries> = emptyList(),
     val mixLucrari: List<MixLucrareItem> = emptyList(),
+    val lucrariEntries: List<LucrareEntryItem> = emptyList(),
     val team: List<TeamMemberItem> = emptyList(),
     val teamSalaryTotal: Double = 0.0,
     val zoneItems: List<ZoneItem> = emptyList(),
     val zonePickers: List<ZonePickItem> = emptyList(),
     val availableSkills: List<Lucrare> = emptyList(),
+    val pontari: List<PontareRowItem> = emptyList(),
     val error: String? = null
 )
 
 data class AverageWorkGraphic(
     val date: LocalDate,
     val quantity: Double,
+)
+
+/** O serie pentru graficul cu linii pe timp (ex. o lucrare, cu punctele ei zilnice). */
+data class ChartSeries(
+    val name: String,
+    val points: List<AverageWorkGraphic>,
 )
 
 /** O lucrare a proiectului + suprafata totala alocata ei (din zone_lucrari). */
@@ -93,6 +104,29 @@ data class ZoneItem(
 data class ZonePickItem(
     val id: Long,
     val name: String,
+)
+
+/** O intrare lucrare-pe-zona (zone_lucrari), individuala — pentru edit/stergere. */
+data class LucrareEntryItem(
+    val zoneId: Long,
+    val zoneName: String,
+    val lucrareId: Long,
+    val lucrareName: String,
+    val quantity: Double,
+    val unit: String,
+)
+
+/** O pontare facuta in proiect (pentru lista / raportari recente). */
+data class PontareRowItem(
+    val employeeName: String,
+    val hours: Double,
+    val lucrareName: String,
+    val quantity: Double,
+    val unit: String,
+    val quality: Double,
+    val date: String,
+    val dateSort: Long,
+    val zoneName: String,
 )
 
 @HiltViewModel
@@ -161,12 +195,15 @@ class ProjectDetailViewModel @Inject constructor(
                         budget = (project.budget)?.toDouble() ?: 0.0,
                         projectCosts = getProjectCosts(project),
                         graphPoints = getPointsForAverageWorkGraphic(histories),
+                        graphSeries = buildGraphSeries(histories, skillsById),
                         mixLucrari = buildMixLucrari(zoneHistories, skillsById),
+                        lucrariEntries = buildLucrariEntries(zoneHistories, skillsById, zones),
                         team = teamMembers,
                         teamSalaryTotal = teamMembers.sumOf { it.salary },
                         zoneItems = buildZones(zones),
                         zonePickers = realZones.map { zone -> ZonePickItem(zone.id, zone.name ?: "Zona") },
-                        availableSkills = skillRepository.getSkillsForCompany(companyId).getOrDefault(emptyList()),
+                        availableSkills = skillsById.values.toList(),
+                        pontari = buildPontari(histories, usersById, skillsById, zones),
                         error = null
                     )
                 }
@@ -221,6 +258,108 @@ class ProjectDetailViewModel @Inject constructor(
             ).onFailure { Log.e(TAG, "Adaugare lucrare esuata", it) }
             zoneRepository.addTotalSurface(targetZone, quantity)
                 .onFailure { Log.e(TAG, "Incrementare suprafata esuata", it) }
+            load(pid)
+        }
+    }
+
+    private fun buildPontari(
+        histories: List<History>,
+        usersById: Map<Long, User>,
+        skillsById: Map<Long, Lucrare>,
+        zones: List<Zone>,
+    ): List<PontareRowItem> {
+        val zoneNameById = zones.associate { it.id to (it.name ?: "Zona") }
+        return histories
+            .sortedByDescending { it.workDate }
+            .map { h ->
+                val skill = skillsById[h.idLucrare]
+                PontareRowItem(
+                    employeeName = usersById[h.userId]?.fullName ?: "Utilizator #${h.userId}",
+                    hours = h.hours ?: 0.0,
+                    lucrareName = skill?.name ?: "Lucrare",
+                    quantity = h.quantity.toDouble(),
+                    unit = skill?.unit ?: "mp",
+                    quality = (h.quality ?: 0f).toDouble(),
+                    date = h.workDate?.let { "${it.dayOfMonth} ${monthShortPontari(it.monthNumber)}" } ?: "—",
+                    dateSort = h.workDate?.toEpochDays()?.toLong() ?: 0L,
+                    zoneName = zoneNameById[h.idZona] ?: "Zona",
+                )
+            }
+    }
+
+    /** Top 4 lucrari ale proiectului, fiecare cu punctele zilnice — pentru graficul cu linii. */
+    private fun buildGraphSeries(histories: List<History>, skillsById: Map<Long, Lucrare>): List<ChartSeries> =
+        histories.filter { it.workDate != null }
+            .groupBy { it.idLucrare }
+            .entries
+            .sortedByDescending { (_, rows) -> rows.sumOf { it.quantity.toDouble() } }
+            .take(4)
+            .map { (lucrareId, rows) ->
+                val points = rows.groupBy { it.workDate!! }
+                    .map { (d, list) -> AverageWorkGraphic(d, list.sumOf { it.quantity.toDouble() }) }
+                    .sortedBy { it.date }
+                ChartSeries(name = skillsById[lucrareId]?.name ?: "Lucrare", points = points)
+            }
+
+    private fun monthShortPontari(m: Int): String =
+        listOf("ian.", "feb.", "mar.", "apr.", "mai", "iun.", "iul.", "aug.", "sep.", "oct.", "nov.", "dec.")[(m - 1).coerceIn(0, 11)]
+
+    fun updateLucrare(zoneId: Long, lucrareId: Long, oldQuantity: Float, newQuantity: Float) {
+        val pid = currentProjectId ?: return
+        if (newQuantity <= 0f) return
+        viewModelScope.launch {
+            zoneHistoryRepository.updateQuantity(zoneId, lucrareId, newQuantity)
+                .onFailure { Log.e(TAG, "Editare lucrare esuata", it) }
+            zoneRepository.addTotalSurface(zoneId, newQuantity - oldQuantity)
+            load(pid)
+        }
+    }
+
+    fun deleteLucrare(zoneId: Long, lucrareId: Long, quantity: Float) {
+        val pid = currentProjectId ?: return
+        viewModelScope.launch {
+            zoneHistoryRepository.remove(zoneId, lucrareId)
+                .onFailure { Log.e(TAG, "Stergere lucrare esuata", it) }
+            zoneRepository.addTotalSurface(zoneId, -quantity)
+            load(pid)
+        }
+    }
+
+    private fun buildLucrariEntries(
+        zoneHistories: List<ZoneHistory>,
+        skillsById: Map<Long, Lucrare>,
+        zones: List<Zone>,
+    ): List<LucrareEntryItem> {
+        val zoneNameById = zones.associate { it.id to (it.name ?: "Zona") }
+        return zoneHistories.map { zh ->
+            val skill = skillsById[zh.lucrareId]
+            LucrareEntryItem(
+                zoneId = zh.zoneId,
+                zoneName = zoneNameById[zh.zoneId] ?: "Zona",
+                lucrareId = zh.lucrareId,
+                lucrareName = skill?.name ?: "Lucrare",
+                quantity = zh.totalQuantity.toDouble(),
+                unit = skill?.unit ?: "mp",
+            )
+        }.sortedByDescending { it.quantity }
+    }
+
+    /** Creeaza o lucrare noua in firma (apare in Preturi) si o adauga pe zona cu o cantitate. */
+    fun addNewLucrare(zoneId: Long?, name: String, unit: String, price: Float, quantity: Float) {
+        val pid = currentProjectId ?: return
+        val companyId = MockSession.currentUser?.idCompany ?: return
+        val targetZone = zoneId ?: implicitZoneId ?: return
+        if (name.isBlank() || quantity <= 0f) return
+        viewModelScope.launch {
+            val skill = skillRepository.createSkill(
+                LucrareInsert(name = name.trim(), unit = unit.trim().ifBlank { "mp" }, price = price, points = 0L, idFirma = companyId)
+            ).getOrNull()
+            if (skill != null) {
+                zoneHistoryRepository.add(
+                    ZoneHistoryInsert(zoneId = targetZone, lucrareId = skill.id, totalQuantity = quantity)
+                ).onFailure { Log.e(TAG, "Adaugare lucrare noua esuata", it) }
+                zoneRepository.addTotalSurface(targetZone, quantity)
+            }
             load(pid)
         }
     }

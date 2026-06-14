@@ -45,11 +45,9 @@ private data class NavItem(
 private val adminItems = listOf(
     NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
     NavItem(Screen.Proiecte,    "Proiecte",   Icons.Filled.Business),
-    NavItem(Screen.Pontare,     "Pontare",    Icons.Filled.Timer),
-    NavItem(Screen.Calitate,    "Calitate",   Icons.Filled.VerifiedUser),
     NavItem(Screen.Angajati,    "Angajati",   Icons.Filled.Group),
     NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
-    NavItem(Screen.Preturi,     "Preturi",    Icons.Filled.Payments),
+    NavItem(Screen.Firma,       "Firma",      Icons.Filled.Domain),
     NavItem(Screen.Ofertare,    "Ofertare",   Icons.Filled.Description),
 )
 
@@ -57,6 +55,24 @@ private val angajatItems = listOf(
     NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
     NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
 )
+
+// Ecrane de editare/adaugare: la navigare in afara lor (din meniu) intrebam intai
+// daca userul vrea sa renunte, ca sa nu piarda ce a introdus.
+private val editRoutes = setOf(
+    Screen.AddProject.route,
+    Screen.AddEmployee.route,
+    Screen.ManageEmployeeSkills.route,
+    Screen.AssignEmployees.route,
+    Screen.PontareEntry.route,
+)
+
+/**
+ * Permite unui ecran de editare sa dezactiveze temporar confirmarea de la navigare
+ * (ex. dupa ce s-a generat codul de invitatie, editarea s-a terminat -> nu mai intrebam).
+ */
+object NavEditGuard {
+    var skipConfirm by mutableStateOf(false)
+}
 
 // ---------------------------------------------------------------------------
 // Continutul vizual al drawer-ului (header + itemi + footer)
@@ -74,6 +90,7 @@ private fun DrawerContent(
         else             -> adminItems
     }
     val sessionViewModel: SessionViewModel = hiltViewModel()
+    var pendingNav by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     Column(
         modifier = Modifier
@@ -130,13 +147,22 @@ private fun DrawerContent(
                     },
                     selected = selected,
                     onClick = {
-                        onItemClick()
                         if (currentRoute != item.screen.route) {
-                            navController.navigate(item.screen.route) {
-                                // Curata back stack-ul pana la Home, ca sa nu ramana
-                                // ecrane de detaliu (ex. ProjectDetail) deasupra destinatiei.
-                                popUpTo(Screen.Home.route)
-                                launchSingleTop = true
+                            val doNavigate = {
+                                onItemClick()
+                                navController.navigate(item.screen.route) {
+                                    // Curata back stack-ul pana la Home, ca sa nu ramana
+                                    // ecrane de detaliu (ex. ProjectDetail) deasupra destinatiei.
+                                    popUpTo(Screen.Home.route)
+                                    launchSingleTop = true
+                                }
+                            }
+                            // Daca esti pe un ecran de editare (si editarea nu s-a terminat),
+                            // confirma intai renuntarea.
+                            if (currentRoute in editRoutes && !NavEditGuard.skipConfirm) {
+                                pendingNav = doNavigate
+                            } else {
+                                doNavigate()
                             }
                         }
                     },
@@ -252,6 +278,17 @@ private fun DrawerContent(
                 }
             }
         }
+
+        pendingNav?.let { proceed ->
+            ConfirmDialog(
+                title = "Renunti la modificari?",
+                message = "Daca pleci de aici, ce ai introdus se va pierde.",
+                onConfirm = { pendingNav = null; proceed() },
+                onDismiss = { pendingNav = null },
+                confirmLabel = "Da, renunt",
+                dismissLabel = "Nu",
+            )
+        }
     }
 }
 
@@ -297,7 +334,7 @@ fun AppNavigationDrawer(
             }
         ) {
             // statusBarsPadding o singura data, la nivel de wrapper
-            Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            Box(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 content()
             }
         }
@@ -322,7 +359,7 @@ fun AppNavigationDrawer(
             }
         ) {
             // statusBarsPadding o singura data, la nivel de wrapper
-            Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            Box(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 content()
             }
         }

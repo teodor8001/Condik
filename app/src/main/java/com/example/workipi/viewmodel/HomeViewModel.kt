@@ -21,6 +21,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.daysUntil
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
@@ -56,7 +57,19 @@ data class HomeUiState(
     val inspectionsToDo: Int = 5, // mocked deocamdata
     val chartSeries: List<SkillMpSeries> = emptyList(),
     val barChart: List<SkillMpBar> = emptyList(),
+    val chartSeriesFull: List<ChartSeries> = emptyList(),
+    // Pagina 2 — metrici financiare
+    val companyProgress: Float? = null,   // diferenta procent profit intre ultimele 2 contracte finalizate
+    val efficiency: Float = 0f,           // media procent profit din proiectele finalizate
+    val budgetsInProgress: Float = 0f,    // media procent profit din toate proiectele
+    val anticipatedProfit: Double = 0.0,  // suma profit din proiectele active
+    val finalizedCount: Int = 0,
+    val activeCount: Int = 0,
+    val offersCount: Int = 0,             // proiecte viitoare (oferte)
+    val totalBudget: Double = 0.0,        // suma bugetelor
+    val totalProfit: Double = 0.0,        // suma profitului din toate proiectele
     val chartDays: Int = MP_LOOKBACK_DAYS,
+    val companyName: String? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )
@@ -86,6 +99,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val companyId = companyIdAsync.await()
+                val companyName = runCatching { authRepository.getCompanyName(companyId) }.getOrNull()
                 // Proiecte + zonele lor → calculam cate sunt active (progress < 1)
                 val projects = projectRepository.getProjectsByCompanyId(companyId)
                 val zones = zoneRepository.getZonesForProjects(projects.map { it.projectId })
@@ -97,6 +111,34 @@ class HomeViewModel @Inject constructor(
                     val done = pZones.sumOf { (it.surfaceCompleted ?: 0f).toDouble() }
                     total <= 0.0 || done < total
                 }
+
+                // ---- Metrici financiare (pagina 2) ----
+                val tz = TimeZone.currentSystemDefault()
+                data class ProjStat(val profit: Double, val profitPct: Double, val finalized: Boolean, val endDate: LocalDate)
+                val stats = projects.map { p ->
+                    val pZones = zonesByProject[p.projectId].orEmpty()
+                    val total = pZones.sumOf { it.surface.toDouble() }
+                    val done = pZones.sumOf { (it.surfaceCompleted ?: 0f).toDouble() }
+                    val finalized = total > 0.0 && done >= total
+                    val startDate = p.startDate.toLocalDateTime(tz).date
+                    val days = startDate.daysUntil(p.endDate).coerceAtLeast(0)
+                    val costs = days * (p.totalSalaryPerMonth / 30.0)
+                    val budget = (p.budget ?: 0f).toDouble()
+                    val profit = budget - costs
+                    val profitPct = if (budget > 0.0) profit / budget * 100.0 else 0.0
+                    ProjStat(profit, profitPct, finalized, p.endDate)
+                }
+                val finalizedStats = stats.filter { it.finalized }
+                val activeStats = stats.filter { !it.finalized }
+                val lastTwoFinalized = finalizedStats.sortedByDescending { it.endDate }.take(2)
+                val companyProgress = if (lastTwoFinalized.size == 2)
+                    (lastTwoFinalized[0].profitPct - lastTwoFinalized[1].profitPct).toFloat() else null
+                val efficiency = if (finalizedStats.isNotEmpty()) finalizedStats.map { it.profitPct }.average().toFloat() else 0f
+                val budgetsInProgress = if (stats.isNotEmpty()) stats.map { it.profitPct }.average().toFloat() else 0f
+                val anticipatedProfit = activeStats.sumOf { it.profit }
+                val totalBudget = projects.sumOf { (it.budget ?: 0f).toDouble() }
+                val totalProfit = stats.sumOf { it.profit }
+                val offersCount = runCatching { projectRepository.getOffersByCompanyId(companyId).size }.getOrDefault(0)
 
                 // Media mp/zi: pontari peste toate zonele firmei, in ultimele 30 zile,
                 // doar pe lucrari cu unitate "mp"
@@ -114,6 +156,21 @@ class HomeViewModel @Inject constructor(
                 val recent = projectHistoryContor.filter { p ->
                     p.idLucrare in mpSkillIds && (p.workDate?.let { it in firstDay..today } ?: false)
                 }
+                // Top 4 lucrari (mp) pe tot istoricul, fiecare cu punctele zilnice —
+                // pentru graficul cu linii navigabil pe timp.
+                val chartSeriesFull = projectHistoryContor
+                    .filter { it.idLucrare in mpSkillIds && it.workDate != null }
+                    .groupBy { it.idLucrare }
+                    .entries
+                    .sortedByDescending { (_, rows) -> rows.sumOf { it.quantity.toDouble() } }
+                    .take(CHART_TOP_N_SKILLS)
+                    .map { (id, rows) ->
+                        val pts = rows.groupBy { it.workDate!! }
+                            .map { (d, l) -> AverageWorkGraphic(d, l.sumOf { it.quantity.toDouble() }) }
+                            .sortedBy { it.date }
+                        ChartSeries(name = skills.firstOrNull { it.id == id }?.name ?: "Lucrare #$id", points = pts)
+                    }
+
                 val totalMp = recent.sumOf { it.quantity.toDouble() }
                 val days = recent.mapNotNull { it.workDate }.distinct().size
                 val avgMpPerDay = if (days > 0) (totalMp / days).toFloat() else 0f
@@ -159,11 +216,22 @@ class HomeViewModel @Inject constructor(
                     // TODO
                     it.copy(
                         isLoading = false,
+                        companyName = companyName,
                         activeProjects = activeProjects,
                         avgMpPerDay = avgMpPerDay,
                         peopleCheckedIn = checkedIn,
                         chartSeries = chartSeries,
                         barChart = barChart,
+                        chartSeriesFull = chartSeriesFull,
+                        companyProgress = companyProgress,
+                        efficiency = efficiency,
+                        budgetsInProgress = budgetsInProgress,
+                        anticipatedProfit = anticipatedProfit,
+                        finalizedCount = finalizedStats.size,
+                        activeCount = activeStats.size,
+                        offersCount = offersCount,
+                        totalBudget = totalBudget,
+                        totalProfit = totalProfit,
                     )
                 }
             } catch (e: Throwable) {

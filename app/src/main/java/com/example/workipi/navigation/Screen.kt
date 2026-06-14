@@ -6,7 +6,9 @@ sealed class Screen(val route: String) {
     object ActivateAccount : Screen("activate_account")
     object Home           : Screen("home")
     object Proiecte       : Screen("proiecte")
-    object AddProject     : Screen("add_project")
+    object AddProject     : Screen("add_project?offer={offer}") {
+        fun createRoute(offer: Boolean = false) = "add_project?offer=$offer"
+    }
     object ProjectDetail  : Screen("project/{projectId}") {
         fun createRoute(projectId: Long) = "project/$projectId"
     }
@@ -16,7 +18,6 @@ sealed class Screen(val route: String) {
     object PontareEntry : Screen("project/{projectId}/pontare/{userId}") {
         fun createRoute(projectId: Long, userId: Long) = "project/$projectId/pontare/$userId"
     }
-    object Pontare        : Screen("pontare")
     object Calitate       : Screen("calitate")
     object Angajati       : Screen("angajati")
     object AddEmployee    : Screen("add_employee")
@@ -27,7 +28,7 @@ sealed class Screen(val route: String) {
         fun createRoute(employeeId: Long) = "employee/$employeeId/skills"
     }
     object Leaderboard    : Screen("leaderboard")
-    object Preturi        : Screen("preturi")
+    object Firma          : Screen("firma")
     object Ofertare       : Screen("ofertare")
     object Settings       : Screen("settings")
 }

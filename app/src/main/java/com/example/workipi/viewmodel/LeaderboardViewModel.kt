@@ -43,7 +43,10 @@ class LeaderboardViewModel @Inject constructor(
         viewModelScope.launch {
             userRepository.getEmployeesByCompanyId(companyId)
                 .onSuccess { employees ->
-                    val sorted = employees.sortedByDescending { it.points ?: 0.0 }
+                    // Topul este al angajatilor — fara admini.
+                    val sorted = employees
+                        .filter { it.role?.equals("admin", ignoreCase = true) != true }
+                        .sortedByDescending { it.points ?: 0.0 }
                     val isAngajat = currentUser.role == UserRole.ANGAJAT
                     val visible = if (isAngajat) {
                         val half = ceil(sorted.size / 2.0).toInt().coerceAtLeast(1)

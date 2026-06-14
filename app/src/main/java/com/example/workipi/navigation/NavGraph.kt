@@ -24,7 +24,15 @@ fun NavGraph(
             composable(Screen.ActivateAccount.route)  { ActivateAccountScreen(navController) }
             composable(Screen.Home.route)          { HomeScreen(navController) }
             composable(Screen.Proiecte.route)    { ProjectsScreen(navController) }
-            composable(Screen.AddProject.route)  { AddProjectScreen(navController) }
+            composable(
+                route = Screen.AddProject.route,
+                arguments = listOf(navArgument("offer") { type = NavType.BoolType; defaultValue = false })
+            ) { backStackEntry ->
+                AddProjectScreen(
+                    navController = navController,
+                    isOffer = backStackEntry.arguments?.getBoolean("offer") ?: false,
+                )
+            }
             composable(
                 route = Screen.ProjectDetail.route,
                 arguments = listOf(navArgument("projectId") { type = NavType.LongType })
@@ -56,7 +64,6 @@ fun NavGraph(
                     userId = backStackEntry.arguments?.getLong("userId") ?: 0L,
                 )
             }
-            composable(Screen.Pontare.route)     { PontareScreen(navController) }
             composable(Screen.Calitate.route)    { CalitateScreen(navController) }
             composable(Screen.Angajati.route)    { AngajatiScreen(navController) }
             composable(Screen.AddEmployee.route) { AddEmployeeScreen(navController) }
@@ -79,7 +86,7 @@ fun NavGraph(
                 )
             }
             composable(Screen.Leaderboard.route) { LeaderboardScreen(navController) }
-            composable(Screen.Preturi.route)     { PreturiScreen(navController) }
+            composable(Screen.Firma.route)       { FirmaScreen(navController) }
             composable(Screen.Ofertare.route)    { OfertareScreen(navController) }
             composable(Screen.Settings.route)    { SettingsScreen(navController) }
         }

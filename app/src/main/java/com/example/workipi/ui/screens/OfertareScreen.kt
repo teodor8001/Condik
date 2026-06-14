@@ -44,7 +44,7 @@ fun OfertareScreen(
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navController.navigate(Screen.AddProject.route) },
+                onClick = { navController.navigate(Screen.AddProject.createRoute(offer = true)) },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = Color.White,
             ) {

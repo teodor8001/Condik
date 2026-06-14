@@ -161,7 +161,7 @@ fun ProjectsScreen(
         }
 
         FloatingActionButton(
-            onClick = { navController.navigate(Screen.AddProject.route) },
+            onClick = { navController.navigate(Screen.AddProject.createRoute(offer = false)) },
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = Color.White,
             modifier = Modifier
@@ -797,11 +797,21 @@ private fun RiskBadge(item: ProjectWithProgress) {
 
     Box(
         modifier = Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(bg)
             .padding(horizontal = 10.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = fg)
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = fg,
+            maxLines = 2,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
     }
 }
 

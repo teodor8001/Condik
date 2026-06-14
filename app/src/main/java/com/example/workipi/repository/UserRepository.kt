@@ -44,6 +44,25 @@ class UserRepository @Inject constructor(
             .decodeList()
     }
 
+    suspend fun updateEmployee(
+        userId: Long,
+        fullName: String,
+        phoneNumber: Long,
+        role: String,
+        salary: Double?,
+    ): Result<Unit> = runCatching {
+        client.from(TABLE).update(
+            {
+                set("nume_prenume", fullName)
+                set("numar_telefon", phoneNumber)
+                set("rol", role)
+                set("salariu", salary)
+            }
+        ) {
+            filter { eq("id_utilizator", userId) }
+        }
+    }
+
     suspend fun addPoints(userId: Long, delta: Double): Result<Unit> = runCatching {
         val user = findById(userId).getOrThrow()
             ?: error("Utilizatorul $userId nu exista")

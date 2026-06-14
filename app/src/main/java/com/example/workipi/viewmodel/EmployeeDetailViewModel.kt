@@ -130,6 +130,17 @@ class EmployeeDetailViewModel @Inject constructor(
         }
     }
 
+    fun updateEmployee(userId: Long, fullName: String, phoneNumber: Long, role: String, salary: Double?) {
+        viewModelScope.launch {
+            userRepository.updateEmployee(userId, fullName, phoneNumber, role, salary)
+                .onSuccess { load(userId) }
+                .onFailure { e ->
+                    Log.e(TAG, "Editarea angajatului a esuat", e)
+                    _uiState.update { it.copy(errorMessage = e.message ?: "Editarea a esuat.") }
+                }
+        }
+    }
+
     fun consumeDeleted() {
         _uiState.update { it.copy(deleted = false) }
     }

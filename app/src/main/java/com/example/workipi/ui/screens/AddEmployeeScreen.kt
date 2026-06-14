@@ -49,6 +49,14 @@ fun AddEmployeeScreen(
     val focusManager = LocalFocusManager.current
     val state by viewModel.uiState.collectAsState()
 
+    // Dupa ce s-a generat codul, editarea s-a terminat -> nu mai confirmam la iesire.
+    LaunchedEffect(state.generatedCode) {
+        com.example.workipi.ui.components.NavEditGuard.skipConfirm = state.generatedCode != null
+    }
+    DisposableEffect(Unit) {
+        onDispose { com.example.workipi.ui.components.NavEditGuard.skipConfirm = false }
+    }
+
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -124,7 +132,11 @@ fun AddEmployeeScreen(
                         val error = when {
                             fullName.isBlank() -> "Introdu numele si prenumele."
                             email.isBlank() -> "Introdu email-ul."
+                            com.example.workipi.util.Validation.emailError(email) != null ->
+                                com.example.workipi.util.Validation.emailError(email)
                             phone.isBlank() -> "Introdu numarul de telefon."
+                            com.example.workipi.util.Validation.phoneError(phone) != null ->
+                                com.example.workipi.util.Validation.phoneError(phone)
                             salary.isNotBlank() && parsedSalary == null -> "Salariul trebuie sa fie un numar valid."
                             else -> null
                         }

@@ -138,6 +138,12 @@ class AuthRepository @Inject constructor(
         return client.auth.currentUserOrNull()?.id ?: error("Cont creat dar nu s-a putut auto-autentifica.")
     }
 
+    suspend fun getCompanyName(companyId: Long): String? =
+        client.from("firme")
+            .select { filter { eq("id_firma", companyId) } }
+            .decodeSingleOrNull<Firma>()
+            ?.denumire
+
 
     /**
      * We are cheching if the phone number and the email is valid and not

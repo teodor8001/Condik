@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.workipi.ui.components.ConfirmDialog
 import com.example.workipi.viewmodel.HistoryViewModel
 import com.example.workipi.viewmodel.PontareUiState
 import java.text.SimpleDateFormat
@@ -106,6 +107,7 @@ fun PontareEntryScreen(
                                 onSelectSkill = viewModel::selectSkill,
                                 onQuantityChange = viewModel::onQuantityChange,
                                 onHoursChange = viewModel::onHoursChange,
+                                onQualityChange = viewModel::onQualityChange,
                                 onPickDate = { showDatePicker = true },
                                 onSubmit = { viewModel.submit(userId) },
                                 focusManager = focusManager,
@@ -124,6 +126,17 @@ fun PontareEntryScreen(
             onDismiss = { showDatePicker = false },
         )
     }
+
+    if (state.duplicateWarning) {
+        ConfirmDialog(
+            title = "Pontare duplicata",
+            message = "Exista deja o pontare pentru acest angajat, aceasta lucrare, in aceasta zi. Vrei sa o adaugi oricum?",
+            onConfirm = { viewModel.confirmSubmitAnyway(userId) },
+            onDismiss = { viewModel.dismissDuplicateWarning() },
+            confirmLabel = "Adauga oricum",
+            dismissLabel = "Anuleaza",
+        )
+    }
 }
 
 /**
@@ -138,6 +151,7 @@ fun PontareFormBody(
     onSelectSkill: (Long) -> Unit,
     onQuantityChange: (String) -> Unit,
     onHoursChange: (String) -> Unit,
+    onQualityChange: (Int) -> Unit,
     onPickDate: () -> Unit,
     onSubmit: () -> Unit,
     focusManager: FocusManager,
@@ -146,6 +160,7 @@ fun PontareFormBody(
 ) {
     var skillMenuExpanded by remember { mutableStateOf(false) }
     var zoneMenuExpanded by remember { mutableStateOf(false) }
+    var qualityMenuExpanded by remember { mutableStateOf(false) }
     val fieldText =
         if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge
 
@@ -257,6 +272,35 @@ fun PontareFormBody(
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
         shape = RoundedCornerShape(10.dp),
     )
+
+    ExposedDropdownMenuBox(
+        expanded = qualityMenuExpanded,
+        onExpandedChange = { qualityMenuExpanded = it },
+    ) {
+        OutlinedTextField(
+            value = "${state.quality} / 5",
+            onValueChange = {},
+            readOnly = true,
+            textStyle = fieldText,
+            label = { Text("Calitate") },
+            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+            shape = RoundedCornerShape(10.dp),
+        )
+        ExposedDropdownMenu(
+            expanded = qualityMenuExpanded,
+            onDismissRequest = { qualityMenuExpanded = false },
+        ) {
+            (1..5).forEach { q ->
+                DropdownMenuItem(
+                    text = { Text("$q / 5") },
+                    onClick = { onQualityChange(q); qualityMenuExpanded = false },
+                )
+            }
+        }
+    }
 
     DateField(
         label = "Data pontarii",
