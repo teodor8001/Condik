@@ -18,18 +18,3 @@ data class User(
     // true cat timp angajatul nu si-a schimbat parola initiala setata de admin ("In asteptare").
     @SerialName("necesita_schimbare_parola") val needsPasswordChange: Boolean = false,
 )
-
-fun User.toUser(): MockUser = MockUser(
-    id = idUser.toString(),
-    name = fullName,
-    email = email,
-    phone = phoneNumber.toString(),
-    role = when (role?.lowercase()) {
-        "admin" -> UserRole.ADMIN
-        "inginer" -> UserRole.PROJECT_MANAGER
-        "angajat" -> UserRole.ANGAJAT
-        "client" -> UserRole.CLIENT
-        else -> UserRole.ANGAJAT
-    },
-    idCompany = idCompany,
-)

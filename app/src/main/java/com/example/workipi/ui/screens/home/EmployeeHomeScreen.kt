@@ -13,12 +13,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.workipi.data.mock.MockSession
 import com.example.workipi.ui.components.LocalOpenDrawer
+import com.example.workipi.ui.session.LocalSessionState
 
 @Composable
 fun EmployeeHomeScreen(navController: NavController) {
-    val user       = MockSession.currentUser ?: return
+    val user       = LocalSessionState.current.user ?: return
     val openDrawer = LocalOpenDrawer.current
 
     BoxWithConstraints(

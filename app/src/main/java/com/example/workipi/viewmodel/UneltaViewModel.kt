@@ -3,7 +3,7 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.Unealta
 import com.example.workipi.data.model.UnealtaInsert
 import com.example.workipi.repository.UneltaRepository
@@ -25,6 +25,7 @@ data class UneltaUiState(
 @HiltViewModel
 class UneltaViewModel @Inject constructor(
     private val repository: UneltaRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UneltaUiState())
@@ -33,7 +34,7 @@ class UneltaViewModel @Inject constructor(
     init { load() }
 
     fun load() {
-        val companyId = MockSession.currentUser?.idCompany ?: return
+        val companyId = sessionStore.state.value.user?.companyId ?: return
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             repository.getByCompany(companyId)
@@ -46,7 +47,7 @@ class UneltaViewModel @Inject constructor(
     }
 
     fun addTool(name: String, totalQuantity: Int) {
-        val companyId = MockSession.currentUser?.idCompany ?: return
+        val companyId = sessionStore.state.value.user?.companyId ?: return
         if (name.isBlank() || totalQuantity <= 0) return
         _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {

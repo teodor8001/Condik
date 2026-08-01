@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.InvitationCode
 import com.example.workipi.data.model.User
 import com.example.workipi.repository.InvitationCodeRepository
@@ -35,6 +35,7 @@ class AngajatiViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val invitationCodeRepository: InvitationCodeRepository,
     @ApplicationContext private val context: Context,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AngajatiUiState())
@@ -45,7 +46,7 @@ class AngajatiViewModel @Inject constructor(
     }
 
     fun loadEmployees() {
-        val companyId = MockSession.currentUser?.idCompany
+        val companyId = sessionStore.state.value.user?.companyId
         if (companyId == null) {
             _uiState.update { it.copy(errorMessage = "Nu am putut identifica firma. Reautentifica-te.") }
             return

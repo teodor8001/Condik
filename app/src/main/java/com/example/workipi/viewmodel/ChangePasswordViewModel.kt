@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workipi.repository.AuthRepository
+import com.example.workipi.session.SessionStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,7 @@ data class ChangePasswordUiState(
 @HiltViewModel
 class ChangePasswordViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChangePasswordUiState())
@@ -52,7 +54,10 @@ class ChangePasswordViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             authRepository.changeOwnPassword(state.password)
-                .onSuccess { _uiState.update { it.copy(isLoading = false, done = true) } }
+                .onSuccess {
+                    sessionStore.markPasswordChanged()
+                    _uiState.update { it.copy(isLoading = false, done = true) }
+                }
                 .onFailure { e ->
                     Log.e(TAG, "Schimbarea parolei a esuat", e)
                     _uiState.update {

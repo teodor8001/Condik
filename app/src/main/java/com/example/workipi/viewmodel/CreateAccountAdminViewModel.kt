@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.model.User
 import com.example.workipi.repository.AuthRepository
-import com.example.workipi.repository.InvitationCodeRepository
+import com.example.workipi.session.SessionStore
 import com.example.workipi.util.Validation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +31,7 @@ data class CreateAdminAccountUiState(
 @HiltViewModel
 class CreateAccountAdminViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CreateAdminAccountUiState())
@@ -84,11 +85,22 @@ class CreateAccountAdminViewModel @Inject constructor(
                 phoneNumber = state.telefon,
                 password = state.password,
             )
+                .mapCatching { utilizator ->
+                    sessionStore.open(utilizator, authRepository.getCurrentPermissions())
+                    utilizator
+                }
                 .onSuccess { utilizator ->
                     Log.d(TAG, "signUpAdmin reusit: idUtilizator=${utilizator.idUser}")
-                    _uiState.update { it.copy(isLoading = false, createdUser = utilizator) }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            createdUser = utilizator,
+                        )
+                    }
                 }
                 .onFailure { e ->
+                    runCatching { authRepository.signOut() }
+                    sessionStore.clear()
                     Log.e(TAG, "signUpAdmin esuat", e)
                     _uiState.update {
                         it.copy(
@@ -101,7 +113,7 @@ class CreateAccountAdminViewModel @Inject constructor(
     }
 
     fun consumeCreatedUser() {
-        _uiState.update {it.copy(createdUser = null)}
+        _uiState.update { it.copy(createdUser = null) }
     }
 
 

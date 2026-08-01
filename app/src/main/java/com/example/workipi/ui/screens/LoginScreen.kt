@@ -36,8 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.workipi.data.mock.MockSession
-import com.example.workipi.data.model.toUser
 import com.example.workipi.navigation.Screen
 import com.example.workipi.ui.screens.login.LoginViewModel
 
@@ -51,7 +49,6 @@ fun LoginScreen(
 
     LaunchedEffect(state.signedInUser) {
         val utilizator = state.signedInUser ?: return@LaunchedEffect
-        MockSession.currentUser = utilizator.toUser()
         viewModel.consumeSignedInUser()
         // Angajatii creati de admin trebuie sa-si schimbe parola initiala inainte de a intra in aplicatie.
         val destination = if (utilizator.needsPasswordChange) Screen.ChangePassword.route else Screen.Home.route

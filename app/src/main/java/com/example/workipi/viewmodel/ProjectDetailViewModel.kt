@@ -4,7 +4,7 @@ import android.provider.MediaStore.UNKNOWN_STRING
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.History
 import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.LucrareInsert
@@ -138,6 +138,7 @@ class ProjectDetailViewModel @Inject constructor(
     private val skillRepository: SkillRepository,
     private val userProjectRepository: UserProjectRepository,
     private val userRepository: UserRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState: MutableStateFlow<ProjectDetailScreenUi> =
@@ -347,7 +348,7 @@ class ProjectDetailViewModel @Inject constructor(
     /** Creeaza o lucrare noua in firma (apare in Preturi) si o adauga pe zona cu o cantitate. */
     fun addNewLucrare(zoneId: Long?, name: String, unit: String, price: Float, quantity: Float) {
         val pid = currentProjectId ?: return
-        val companyId = MockSession.currentUser?.idCompany ?: return
+        val companyId = sessionStore.state.value.user?.companyId ?: return
         val targetZone = zoneId ?: implicitZoneId ?: return
         if (name.isBlank() || quantity <= 0f) return
         viewModelScope.launch {

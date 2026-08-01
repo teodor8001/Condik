@@ -34,7 +34,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.navigation.NavController
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionUser
+import com.example.workipi.ui.session.LocalSessionState
 import com.example.workipi.ui.components.LocalOpenDrawer
 import com.example.workipi.ui.components.StatCard
 import com.example.workipi.ui.components.TimeNavLineChart
@@ -88,7 +89,7 @@ fun AdminHomeScreen(
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
-    val user = MockSession.currentUser ?: return
+    val user = LocalSessionState.current.user ?: return
     val state by viewModel.uiState.collectAsState()
     val openDrawer = LocalOpenDrawer.current
 
@@ -140,7 +141,7 @@ fun AdminHomeScreen(
 
 @Composable
 private fun Page1(
-    user: com.example.workipi.data.model.MockUser,
+    user: SessionUser,
     state: HomeUiState,
     openDrawer: (() -> Unit)?,
     fitsFourInRow: Boolean,

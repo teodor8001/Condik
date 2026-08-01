@@ -2,10 +2,10 @@ package com.example.workipi.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
-import com.example.workipi.data.model.toUser
 import com.example.workipi.navigation.Screen
 import com.example.workipi.repository.AuthRepository
+import com.example.workipi.session.SessionState
+import com.example.workipi.session.SessionStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SessionViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     sealed interface StartupState {
@@ -29,18 +30,27 @@ class SessionViewModel @Inject constructor(
 
     private val _state = MutableStateFlow<StartupState>(StartupState.Loading)
     val state: StateFlow<StartupState> = _state.asStateFlow()
+    val sessionState: StateFlow<SessionState> = sessionStore.state
 
     init {
         viewModelScope.launch {
-            val user = runCatching { authRepository.restoreSession() }.getOrNull()
-            _state.value = if (user != null) {
-                MockSession.currentUser = user.toUser()
-                // Daca angajatul inca nu si-a schimbat parola initiala, il ducem direct la schimbare.
-                val route = if (user.needsPasswordChange) Screen.ChangePassword.route else Screen.Home.route
-                StartupState.Ready(route)
-            } else {
-                StartupState.Ready(Screen.Login.route)
+            val restored = runCatching {
+                val user = authRepository.restoreSession() ?: return@runCatching null
+                val permissions = authRepository.getCurrentPermissions()
+                sessionStore.open(user, permissions)
+                user
             }
+            val user = restored.getOrNull()
+            if (restored.isFailure) {
+                runCatching { authRepository.signOut() }
+                sessionStore.clear()
+            }
+            val route = when {
+                user == null -> Screen.Login.route
+                user.needsPasswordChange -> Screen.ChangePassword.route
+                else -> Screen.Home.route
+            }
+            _state.value = StartupState.Ready(route)
         }
     }
 
@@ -48,7 +58,7 @@ class SessionViewModel @Inject constructor(
     fun logout(onComplete: () -> Unit) {
         viewModelScope.launch {
             runCatching { authRepository.signOut() }
-            MockSession.currentUser = null
+            sessionStore.clear()
             onComplete()
         }
     }

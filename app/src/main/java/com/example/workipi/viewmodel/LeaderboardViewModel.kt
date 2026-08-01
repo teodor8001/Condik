@@ -3,7 +3,7 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.User
 import com.example.workipi.data.model.UserRole
 import com.example.workipi.repository.UserRepository
@@ -27,14 +27,15 @@ data class LeaderboardUiState(
 @HiltViewModel
 class LeaderboardViewModel @Inject constructor(
     private val userRepository: UserRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LeaderboardUiState())
     val uiState: StateFlow<LeaderboardUiState> = _uiState.asStateFlow()
 
     fun load() {
-        val currentUser = MockSession.currentUser
-        val companyId = currentUser?.idCompany
+        val currentUser = sessionStore.state.value.user
+        val companyId = currentUser?.companyId
         if (companyId == null) {
             _uiState.update { it.copy(errorMessage = "Nu am putut identifica firma.") }
             return

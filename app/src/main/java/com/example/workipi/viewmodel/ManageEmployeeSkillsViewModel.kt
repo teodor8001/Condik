@@ -3,7 +3,7 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.SkillLevel
 import com.example.workipi.data.model.UtilizatorLucrareInsert
@@ -32,13 +32,14 @@ data class ManageEmployeeSkillsUiState(
 class ManageEmployeeSkillsViewModel @Inject constructor(
     private val utilizatorLucrareRepository: UtilizatorLucrareRepository,
     private val skillRepository: SkillRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ManageEmployeeSkillsUiState())
     val uiState: StateFlow<ManageEmployeeSkillsUiState> = _uiState.asStateFlow()
 
     fun load(userId: Long) {
-        val companyId = MockSession.currentUser?.idCompany
+        val companyId = sessionStore.state.value.user?.companyId
         if (companyId == null) {
             _uiState.update { it.copy(errorMessage = "Nu am putut identifica firma.") }
             return
