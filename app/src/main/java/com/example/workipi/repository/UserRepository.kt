@@ -86,6 +86,15 @@ class UserRepository @Inject constructor(
         }
     }
 
+    /** Reseteaza check-in-ul tuturor angajatilor firmei (folosit la inceputul zilei de lucru). */
+    suspend fun resetAllCheckIns(companyId: Long): Result<Unit> = runCatching {
+        client.from(TABLE).update(
+            { set("este_checked_in", false) }
+        ) {
+            filter { eq("id_firma", companyId) }
+        }
+    }
+
     suspend fun countCheckedIn(companyId: Long): Result<Long> = runCatching {
         client.from(TABLE)
             .select {

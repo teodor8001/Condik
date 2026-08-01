@@ -10,7 +10,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +27,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,9 +54,9 @@ fun AddEmployeeScreen(
     val focusManager = LocalFocusManager.current
     val state by viewModel.uiState.collectAsState()
 
-    // Dupa ce s-a generat codul, editarea s-a terminat -> nu mai confirmam la iesire.
-    LaunchedEffect(state.generatedCode) {
-        com.example.workipi.ui.components.NavEditGuard.skipConfirm = state.generatedCode != null
+    // Dupa ce contul a fost creat, editarea s-a terminat -> nu mai confirmam la iesire.
+    LaunchedEffect(state.createdEmployeeName) {
+        com.example.workipi.ui.components.NavEditGuard.skipConfirm = state.createdEmployeeName != null
     }
     DisposableEffect(Unit) {
         onDispose { com.example.workipi.ui.components.NavEditGuard.skipConfirm = false }
@@ -61,6 +66,9 @@ fun AddEmployeeScreen(
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var salary by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     var role by remember { mutableStateOf(InviteRole.ANGAJAT) }
     var roleMenuExpanded by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf("") }
@@ -93,15 +101,15 @@ fun AddEmployeeScreen(
         ) {
 
             Text(
-                text = "Invita angajat nou",
+                text = "Adauga angajat nou",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = if (state.generatedCode == null) "Genereaza cod de invitatie"
-                       else "Cod generat cu succes",
+                text = if (state.createdEmployeeName == null) "Creeaza contul angajatului"
+                       else "Cont creat cu succes",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.sp
@@ -109,8 +117,8 @@ fun AddEmployeeScreen(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            val generated = state.generatedCode
-            if (generated == null) {
+            val createdName = state.createdEmployeeName
+            if (createdName == null) {
                 FormCard(
                     fullName = fullName,
                     onFullNameChange = { fullName = it; localError = "" },
@@ -120,6 +128,12 @@ fun AddEmployeeScreen(
                     onPhoneChange = { phone = it.filter { c -> c.isDigit() }; localError = "" },
                     salary = salary,
                     onSalaryChange = { salary = it.filter { c -> c.isDigit() || c == '.' }; localError = "" },
+                    password = password,
+                    onPasswordChange = { password = it; localError = "" },
+                    confirmPassword = confirmPassword,
+                    onConfirmPasswordChange = { confirmPassword = it; localError = "" },
+                    passwordVisible = passwordVisible,
+                    onTogglePasswordVisibility = { passwordVisible = !passwordVisible },
                     role = role,
                     onRoleChange = { role = it },
                     roleMenuExpanded = roleMenuExpanded,
@@ -138,18 +152,21 @@ fun AddEmployeeScreen(
                             com.example.workipi.util.Validation.phoneError(phone) != null ->
                                 com.example.workipi.util.Validation.phoneError(phone)
                             salary.isNotBlank() && parsedSalary == null -> "Salariul trebuie sa fie un numar valid."
+                            password.length < 6 -> "Parola trebuie sa aiba cel putin 6 caractere."
+                            password != confirmPassword -> "Parolele nu coincid."
                             else -> null
                         }
                         if (error != null) {
                             localError = error
                             return@FormCard
                         }
-                        viewModel.generateInvitationCode(
+                        viewModel.createEmployeeAccount(
                             fullName = fullName,
                             email = email,
                             phoneNumber = phone,
                             role = role.role,
                             salary = parsedSalary,
+                            password = password,
                         )
                     }
                 )
@@ -163,13 +180,15 @@ fun AddEmployeeScreen(
                     onSetLevel = viewModel::setSkillLevel,
                 )
             } else {
-                GeneratedCodeCard(
-                    code = generated,
-                    onGenerateAnother = {
+                AccountCreatedCard(
+                    employeeName = createdName,
+                    onAddAnother = {
                         fullName = ""
                         email = ""
                         phone = ""
                         salary = ""
+                        password = ""
+                        confirmPassword = ""
                         role = InviteRole.ANGAJAT
                         localError = ""
                         viewModel.reset()
@@ -191,6 +210,12 @@ private fun FormCard(
     onPhoneChange: (String) -> Unit,
     salary: String,
     onSalaryChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    confirmPassword: String,
+    onConfirmPasswordChange: (String) -> Unit,
+    passwordVisible: Boolean,
+    onTogglePasswordVisibility: () -> Unit,
     role: InviteRole,
     onRoleChange: (InviteRole) -> Unit,
     roleMenuExpanded: Boolean,
@@ -264,10 +289,55 @@ private fun FormCard(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                shape = RoundedCornerShape(10.dp),
+            )
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = onPasswordChange,
+                label = { Text("Parola initiala") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                trailingIcon = {
+                    IconButton(onClick = onTogglePasswordVisibility) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                            contentDescription = if (passwordVisible) "Ascunde parola" else "Arata parola",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(10.dp),
+            )
+
+            OutlinedTextField(
+                value = confirmPassword,
+                onValueChange = onConfirmPasswordChange,
+                label = { Text("Confirma parola") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
                     imeAction = ImeAction.Done
                 ),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                 shape = RoundedCornerShape(10.dp),
+            )
+
+            Text(
+                text = "Angajatul se va loga cu acest email si parola, apoi va fi rugat sa-si schimbe parola. Pana atunci ramane \"in asteptare\", dar poate fi adaugat in proiecte.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             ExposedDropdownMenuBox(
@@ -330,7 +400,7 @@ private fun FormCard(
                     )
                 } else {
                     Text(
-                        text = "Genereaza cod invitatie",
+                        text = "Creeaza cont angajat",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -341,13 +411,10 @@ private fun FormCard(
 }
 
 @Composable
-private fun GeneratedCodeCard(
-    code: String,
-    onGenerateAnother: () -> Unit,
+private fun AccountCreatedCard(
+    employeeName: String,
+    onAddAnother: () -> Unit,
 ) {
-    val clipboard = LocalClipboardManager.current
-    var copied by remember { mutableStateOf(false) }
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -359,70 +426,39 @@ private fun GeneratedCodeCard(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "Cod de invitatie",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp),
             )
 
             Text(
-                text = "Trimite acest cod angajatului. Expira in 24 de ore.",
+                text = "Cont creat pentru $employeeName",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+            )
+
+            Text(
+                text = "Da-i angajatului email-ul si parola initiala. La prima logare i se va cere sa-si schimbe parola. Pana atunci apare ca \"in asteptare\", dar poate fi adaugat in proiecte.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
-            // Cod + buton copy
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = code,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 4.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                IconButton(
-                    onClick = {
-                        clipboard.setText(AnnotatedString(code))
-                        copied = true
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ContentCopy,
-                        contentDescription = "Copiaza cod",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            if (copied) {
-                Text(
-                    text = "Cod copiat in clipboard",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
             Spacer(modifier = Modifier.height(4.dp))
 
             OutlinedButton(
-                onClick = onGenerateAnother,
+                onClick = onAddAnother,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(10.dp),
             ) {
                 Text(
-                    text = "Genereaza alt cod",
+                    text = "Adauga alt angajat",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
                 )

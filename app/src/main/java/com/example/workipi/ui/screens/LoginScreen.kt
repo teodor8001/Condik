@@ -53,7 +53,9 @@ fun LoginScreen(
         val utilizator = state.signedInUser ?: return@LaunchedEffect
         MockSession.currentUser = utilizator.toUser()
         viewModel.consumeSignedInUser()
-        navController.navigate(Screen.Home.route) {
+        // Angajatii creati de admin trebuie sa-si schimbe parola initiala inainte de a intra in aplicatie.
+        val destination = if (utilizator.needsPasswordChange) Screen.ChangePassword.route else Screen.Home.route
+        navController.navigate(destination) {
             popUpTo(Screen.Login.route) { inclusive = true }
         }
     }

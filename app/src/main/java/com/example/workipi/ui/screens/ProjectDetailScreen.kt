@@ -66,6 +66,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.navigation.NavController
 import com.example.workipi.viewmodel.HistoryViewModel
 import com.example.workipi.ui.theme.CARD_SPACING
@@ -78,6 +80,7 @@ import com.example.workipi.ui.theme.PADDING
 import com.example.workipi.ui.theme.PROGRESS_BAR_HEIGHT
 import com.example.workipi.ui.theme.SCREEN_PADDING
 import com.example.workipi.data.model.Lucrare
+import com.example.workipi.navigation.Screen
 import com.example.workipi.ui.components.ConfirmDialog
 import com.example.workipi.ui.components.TimeNavLineChart
 import com.example.workipi.ui.theme.generalUiComponents.InformationCard
@@ -112,6 +115,8 @@ fun ProjectDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(projectId) { viewModel.load(projectId) }
+    // Reincarca la revenirea pe ecran (ex. dupa ce am asignat angajati noi echipei).
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.load(projectId) }
 
     val pagerState = rememberPagerState(pageCount = { 2 })
     val scope = rememberCoroutineScope()
@@ -131,6 +136,7 @@ fun ProjectDetailScreen(
                     viewModel = viewModel,
                     onReload = { viewModel.load(projectId) },
                     onGoNext = { scope.launch { pagerState.animateScrollToPage(1) } },
+                    onAssignTeam = { navController.navigate(Screen.AssignEmployees.createRoute(projectId)) },
                 )
                 else -> ReportsPage(
                     pontari = state.pontari,
@@ -162,6 +168,7 @@ private fun DetailPage(
     viewModel: ProjectDetailViewModel,
     onReload: () -> Unit,
     onGoNext: () -> Unit,
+    onAssignTeam: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -187,6 +194,7 @@ private fun DetailPage(
                 projectId = projectId,
                 viewModel = viewModel,
                 onReload = onReload,
+                onAssignTeam = onAssignTeam,
             )
         }
 
@@ -306,6 +314,7 @@ private fun DetailPanel(
     projectId: Long,
     viewModel: ProjectDetailViewModel,
     onReload: () -> Unit,
+    onAssignTeam: () -> Unit,
 ) {
     var openDialog by remember { mutableStateOf<DetailDialog?>(null) }
 
@@ -438,6 +447,7 @@ private fun DetailPanel(
             title = "Echipa curenta",
             subtitle = "${state.team.size} angajati • ${state.teamSalaryTotal.roundToInt()} RON salarii / luna",
             onDismiss = { openDialog = null },
+            onAdd = { openDialog = null; onAssignTeam() },
         ) {
             if (state.team.isEmpty()) {
                 EmptyHint("Niciun angajat alocat acestui proiect")
@@ -491,13 +501,14 @@ private fun PontarePopup(
     ) {
         Card(
             modifier = Modifier
+                .widthIn(max = 460.dp)
                 .fillMaxWidth(0.92f)
                 .heightIn(max = 720.dp),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         ) {
-            Box {
+            Box(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier
                         .verticalScroll(rememberScrollState())
@@ -742,14 +753,14 @@ private fun ListPopupDialog(
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
                 .widthIn(max = 460.dp)
+                .fillMaxWidth(0.92f)
                 .heightIn(max = 560.dp),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         ) {
-            Box {
+            Box(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier
                         .verticalScroll(rememberScrollState())
@@ -1269,8 +1280,8 @@ private fun FormDialog(
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .widthIn(max = 460.dp),
+                .widthIn(max = 460.dp)
+                .fillMaxWidth(0.92f),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),

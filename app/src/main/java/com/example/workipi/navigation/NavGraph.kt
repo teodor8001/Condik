@@ -22,6 +22,7 @@ fun NavGraph(
             composable(Screen.Login.route)            { LoginScreen(navController) }
             composable(Screen.CreateCompany.route)    { CreateCompanyScreen(navController) }
             composable(Screen.ActivateAccount.route)  { ActivateAccountScreen(navController) }
+            composable(Screen.ChangePassword.route)   { ChangePasswordScreen(navController) }
             composable(Screen.Home.route)          { HomeScreen(navController) }
             composable(Screen.Proiecte.route)    { ProjectsScreen(navController) }
             composable(

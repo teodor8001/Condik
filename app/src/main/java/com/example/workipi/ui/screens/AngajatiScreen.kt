@@ -25,6 +25,7 @@ import androidx.navigation.NavController
 import com.example.workipi.data.model.InvitationCode
 import com.example.workipi.data.model.User
 import com.example.workipi.navigation.Screen
+import com.example.workipi.ui.components.ConfirmDialog
 import com.example.workipi.ui.components.LocalOpenDrawer
 import com.example.workipi.viewmodel.AngajatiViewModel
 
@@ -42,6 +43,7 @@ fun AngajatiScreen(
     val state by viewModel.uiState.collectAsState()
     val openDrawer = LocalOpenDrawer.current
     var sortBy by remember { mutableStateOf(SortBy.ALFABETIC) }
+    var pendingUncheck by remember { mutableStateOf<User?>(null) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.loadEmployees() }
 
@@ -197,6 +199,10 @@ fun AngajatiScreen(
                                         Screen.EmployeeDetail.createRoute(employee.idUser)
                                     )
                                 },
+                                onCheckedChange = { checked ->
+                                    if (checked) viewModel.setCheckedIn(employee.idUser, true)
+                                    else pendingUncheck = employee
+                                },
                             )
                             if (index < sorted.lastIndex) {
                                 HorizontalDivider(
@@ -225,10 +231,24 @@ fun AngajatiScreen(
             }
         }
     }
+
+    pendingUncheck?.let { emp ->
+        ConfirmDialog(
+            title = "Esti sigur?",
+            message = "Scoti check-in-ul pentru ${emp.fullName}?",
+            onConfirm = { viewModel.setCheckedIn(emp.idUser, false); pendingUncheck = null },
+            onDismiss = { pendingUncheck = null },
+        )
+    }
 }
 
 @Composable
-private fun AngajatRow(number: Int, employee: User, onClick: () -> Unit) {
+private fun AngajatRow(
+    number: Int,
+    employee: User,
+    onClick: () -> Unit,
+    onCheckedChange: (Boolean) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -277,6 +297,22 @@ private fun AngajatRow(number: Int, employee: User, onClick: () -> Unit) {
             )
         }
 
+        if (employee.needsPasswordChange) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = "In asteptare",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
         employee.salary?.let { salary ->
             Text(
                 text = "${salary.toInt()} RON",
@@ -285,6 +321,11 @@ private fun AngajatRow(number: Int, employee: User, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.primary,
             )
         }
+
+        Checkbox(
+            checked = employee.isCheckedIn,
+            onCheckedChange = onCheckedChange,
+        )
     }
 }
 

@@ -35,7 +35,9 @@ class SessionViewModel @Inject constructor(
             val user = runCatching { authRepository.restoreSession() }.getOrNull()
             _state.value = if (user != null) {
                 MockSession.currentUser = user.toUser()
-                StartupState.Ready(Screen.Home.route)
+                // Daca angajatul inca nu si-a schimbat parola initiala, il ducem direct la schimbare.
+                val route = if (user.needsPasswordChange) Screen.ChangePassword.route else Screen.Home.route
+                StartupState.Ready(route)
             } else {
                 StartupState.Ready(Screen.Login.route)
             }
