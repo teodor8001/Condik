@@ -36,12 +36,52 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.navigation.NavController
 import com.example.workipi.data.mock.MockSession
 import com.example.workipi.ui.components.LocalOpenDrawer
-import com.example.workipi.ui.components.MpPerDayChart
 import com.example.workipi.ui.components.StatCard
+import com.example.workipi.ui.components.TimeNavLineChart
 import com.example.workipi.ui.components.TotalMpBarChart
+import com.example.workipi.viewmodel.ChartSeries
 import com.example.workipi.viewmodel.HomeUiState
 import com.example.workipi.viewmodel.HomeViewModel
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+
+private fun signedPct(value: Float): String {
+    val r = value.roundToInt()
+    return (if (r > 0) "+" else "") + "$r%"
+}
+
+@Composable
+private fun ProductieChartCard(
+    series: List<ChartSeries>,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Top 4 lucrari (mp / timp)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            TimeNavLineChart(
+                series = series,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            )
+        }
+    }
+}
 
 @Composable
 fun AdminHomeScreen(
@@ -80,6 +120,7 @@ fun AdminHomeScreen(
                     onGoNext = { scope.launch { pagerState.animateScrollToPage(1) } },
                 )
                 1 -> Page2(
+                    state = state,
                     hPad = hPad,
                     onGoBack = { scope.launch { pagerState.animateScrollToPage(0) } },
                 )
@@ -124,6 +165,14 @@ private fun Page1(
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                state.companyName?.let { firma ->
+                    Text(
+                        text = firma,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 Text(
                     text = "Buna ziua, ${user.name.split(" ").first()}!",
                     style = MaterialTheme.typography.headlineSmall,
@@ -230,9 +279,8 @@ private fun Page1(
                         .height(IntrinsicSize.Max),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    MpPerDayChart(
-                        series = state.chartSeries,
-                        chartDays = state.chartDays,
+                    ProductieChartCard(
+                        series = state.chartSeriesFull,
                         modifier = Modifier.weight(0.7f).fillMaxHeight(),
                     )
                     TotalMpBarChart(
@@ -241,10 +289,11 @@ private fun Page1(
                     )
                 }
             } else {
-                MpPerDayChart(
-                    series = state.chartSeries,
-                    chartDays = state.chartDays,
-                    modifier = Modifier.fillMaxWidth(),
+                ProductieChartCard(
+                    series = state.chartSeriesFull,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp),
                 )
                 TotalMpBarChart(
                     bars = state.barChart,
@@ -275,6 +324,7 @@ private fun Page1(
 
 @Composable
 private fun Page2(
+    state: HomeUiState,
     hPad: androidx.compose.ui.unit.Dp,
     onGoBack: () -> Unit,
 ) {
@@ -307,14 +357,48 @@ private fun Page2(
                 .padding(top = 8.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // ---- Rand 1: 4 carduri ----
+            // ---- Rand 1: 4 carduri financiare ----
             CardsRow(
                 fitsFourInRow = fitsFourInRow,
-                cards = List(4) { idx ->
+                cards = listOf(
                     @Composable { mod: Modifier ->
-                        PlaceholderStatCard(label = "Card ${idx + 1}", modifier = mod)
-                    }
-                },
+                        StatCard(
+                            title = "Progres firma",
+                            value = state.companyProgress?.let { signedPct(it) } ?: "—",
+                            subtitle = "ultimele 2 contracte",
+                            trend = state.companyProgress,
+                            icon = Icons.Filled.TrendingUp,
+                            modifier = mod,
+                        )
+                    },
+                    @Composable { mod: Modifier ->
+                        StatCard(
+                            title = "Eficienta",
+                            value = "${state.efficiency.roundToInt()}%",
+                            subtitle = "media din ${state.finalizedCount} finalizate",
+                            icon = Icons.Filled.Speed,
+                            modifier = mod,
+                        )
+                    },
+                    @Composable { mod: Modifier ->
+                        StatCard(
+                            title = "Bugete in lucru",
+                            value = "${state.budgetsInProgress.roundToInt()}%",
+                            subtitle = "media toate proiectele",
+                            icon = Icons.Filled.Savings,
+                            modifier = mod,
+                        )
+                    },
+                    @Composable { mod: Modifier ->
+                        StatCard(
+                            title = "Profit anticipat",
+                            value = "${state.anticipatedProfit.roundToInt()} RON",
+                            subtitle = "din ${state.activeCount} active",
+                            icon = Icons.Filled.TrendingUp,
+                            modifier = mod,
+                        )
+                    },
+                ),
             )
 
             // ---- Rand 2: 2 grafice (50/50) ----
@@ -349,11 +433,42 @@ private fun Page2(
             // ---- Rand 3: 4 carduri ----
             CardsRow(
                 fitsFourInRow = fitsFourInRow,
-                cards = List(4) { idx ->
+                cards = listOf(
                     @Composable { mod: Modifier ->
-                        PlaceholderStatCard(label = "Card ${idx + 5}", modifier = mod)
-                    }
-                },
+                        StatCard(
+                            title = "Proiecte viitoare",
+                            value = "${state.offersCount}",
+                            subtitle = "oferte",
+                            icon = Icons.Filled.Work,
+                            modifier = mod,
+                        )
+                    },
+                    @Composable { mod: Modifier ->
+                        StatCard(
+                            title = "Proiecte incheiate",
+                            value = "${state.finalizedCount}",
+                            subtitle = "finalizate",
+                            icon = Icons.Filled.AssignmentTurnedIn,
+                            modifier = mod,
+                        )
+                    },
+                    @Composable { mod: Modifier ->
+                        StatCard(
+                            title = "Bugete totale",
+                            value = "${state.totalBudget.roundToInt()} RON",
+                            icon = Icons.Filled.Savings,
+                            modifier = mod,
+                        )
+                    },
+                    @Composable { mod: Modifier ->
+                        StatCard(
+                            title = "Profit total",
+                            value = "${state.totalProfit.roundToInt()} RON",
+                            icon = Icons.Filled.TrendingUp,
+                            modifier = mod,
+                        )
+                    },
+                ),
             )
         }
     }

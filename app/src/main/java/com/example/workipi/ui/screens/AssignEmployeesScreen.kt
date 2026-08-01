@@ -195,7 +195,8 @@ private fun EmployeeRow(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = employee.role?.replaceFirstChar { it.uppercase() } ?: "Angajat",
+                    text = (employee.role?.replaceFirstChar { it.uppercase() } ?: "Angajat") +
+                        if (employee.needsPasswordChange) " • In asteptare" else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

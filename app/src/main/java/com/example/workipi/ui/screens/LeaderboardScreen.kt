@@ -11,19 +11,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.workipi.data.mock.MockData
-import com.example.workipi.data.model.MockEmployee
+import com.example.workipi.data.model.User
 import com.example.workipi.navigation.Screen
 import com.example.workipi.ui.components.LocalOpenDrawer
-import kotlin.math.ceil
+import com.example.workipi.viewmodel.LeaderboardViewModel
+import kotlin.math.roundToLong
 
 private data class MedalStyle(
     val bg: Color,
@@ -38,11 +43,14 @@ private val medals = listOf(
 )
 
 @Composable
-fun LeaderboardScreen(navController: NavController) {
-    val sorted       = MockData.employees.sortedByDescending { it.points }
-    val topCount     = ceil(sorted.size / 2.0).toInt()
-    val topEmployees = sorted.take(topCount)
-    val openDrawer   = LocalOpenDrawer.current
+fun LeaderboardScreen(
+    navController: NavController,
+    viewModel: LeaderboardViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsState()
+    LaunchedEffect(Unit) { viewModel.load() }
+
+    val openDrawer = LocalOpenDrawer.current
 
     Column(
         modifier = Modifier
@@ -52,7 +60,6 @@ fun LeaderboardScreen(navController: NavController) {
             .padding(top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // ---- Header ----
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -73,17 +80,24 @@ fun LeaderboardScreen(navController: NavController) {
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+                val subtitle = when {
+                    state.isLoading -> "Se incarca..."
+                    state.errorMessage != null -> state.errorMessage!!
+                    state.isRestricted -> "Top ${state.visible.size} din ${state.totalEmployees} angajati"
+                    else -> "${state.totalEmployees} angajati"
+                }
                 Text(
-                    text = "Top $topCount din ${MockData.employees.size} angajati",
+                    text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        // ---- Top 3 carduri: locul 2 stanga, locul 1 mijloc, locul 3 dreapta ----
-        if (topEmployees.size >= 3) {
-            val order = listOf(1, 0, 2) // indecsi din topEmployees: 2nd, 1st, 3rd
+        val employees = state.visible
+
+        if (employees.size >= 3) {
+            val order = listOf(1, 0, 2)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -92,12 +106,12 @@ fun LeaderboardScreen(navController: NavController) {
                     val position = empIndex + 1
                     TopThreeCard(
                         position = position,
-                        employee = topEmployees[empIndex],
-                        medal    = medals[empIndex],
+                        employee = employees[empIndex],
+                        medal = medals[empIndex],
                         modifier = Modifier.weight(1f),
-                        onClick  = {
+                        onClick = {
                             navController.navigate(
-                                Screen.EmployeeDetail.createRoute(topEmployees[empIndex].id.toLongOrNull() ?: 0L)
+                                Screen.EmployeeDetail.createRoute(employees[empIndex].idUser)
                             )
                         }
                     )
@@ -105,33 +119,43 @@ fun LeaderboardScreen(navController: NavController) {
             }
         }
 
-        // ---- Lista locurile 4+ ----
-        if (topEmployees.size > 3) {
+        if (employees.size > 3) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                itemsIndexed(topEmployees.drop(3)) { index, employee ->
+                itemsIndexed(employees.drop(3)) { index, employee ->
                     LeaderboardCard(
                         position = index + 4,
                         employee = employee,
-                        onClick  = {
+                        onClick = {
                             navController.navigate(
-                                Screen.EmployeeDetail.createRoute(employee.id.toLongOrNull() ?: 0L)
+                                Screen.EmployeeDetail.createRoute(employee.idUser)
                             )
                         }
                     )
                 }
             }
+        } else if (employees.isEmpty() && !state.isLoading && state.errorMessage == null) {
+            Text(
+                text = "Niciun angajat in firma.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
 
-// ---- Card pentru locurile 1, 2, 3 — layout vertical compact pentru telefon ----
+private fun User.initials(): String =
+    fullName.split(" ").take(2).joinToString("") { it.firstOrNull()?.uppercase() ?: "" }
+
+private fun User.pointsLabel(): String =
+    "${(points ?: 0.0).roundToLong()} pts"
+
 @Composable
 private fun TopThreeCard(
     position: Int,
-    employee: MockEmployee,
+    employee: User,
     medal: MedalStyle,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
@@ -151,10 +175,7 @@ private fun TopThreeCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // Emoji medalie
             Text(text = medal.emoji, fontSize = 26.sp)
-
-            // Avatar
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -163,29 +184,22 @@ private fun TopThreeCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = employee.name
-                        .split(" ")
-                        .take(2)
-                        .joinToString("") { it.first().uppercase() },
+                    text = employee.initials(),
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
                     color = medal.accent
                 )
             }
-
-            // Prenume (maxLines=1 pentru ecrane mici)
             Text(
-                text = employee.name.split(" ").first(),
+                text = employee.fullName.split(" ").firstOrNull() ?: employee.fullName,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis
             )
-
-            // Puncte
             Text(
-                text = "${employee.points} pts",
+                text = employee.pointsLabel(),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = medal.accent
@@ -194,9 +208,8 @@ private fun TopThreeCard(
     }
 }
 
-// ---- Card pentru locurile 4+ ----
 @Composable
-private fun LeaderboardCard(position: Int, employee: MockEmployee, onClick: () -> Unit) {
+private fun LeaderboardCard(position: Int, employee: User, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -212,7 +225,6 @@ private fun LeaderboardCard(position: Int, employee: MockEmployee, onClick: () -
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Numar pozitie
             Box(modifier = Modifier.width(28.dp), contentAlignment = Alignment.Center) {
                 Text(
                     text = "$position",
@@ -221,8 +233,6 @@ private fun LeaderboardCard(position: Int, employee: MockEmployee, onClick: () -
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            // Avatar
             Box(
                 modifier = Modifier
                     .size(42.dp)
@@ -231,35 +241,28 @@ private fun LeaderboardCard(position: Int, employee: MockEmployee, onClick: () -
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = employee.name
-                        .split(" ")
-                        .take(2)
-                        .joinToString("") { it.first().uppercase() },
+                    text = employee.initials(),
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-
-            // Nume + specialitate
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = employee.name,
+                    text = employee.fullName,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = employee.primarySpecialty,
+                    text = employee.role?.replaceFirstChar { it.uppercase() } ?: "Angajat",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            // Puncte
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "${employee.points}",
+                    text = "${(employee.points ?: 0.0).roundToLong()}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary

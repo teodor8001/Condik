@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.model.User
 import com.example.workipi.repository.AuthRepository
 import com.example.workipi.repository.InvitationCodeRepository
+import com.example.workipi.util.Validation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,8 +63,9 @@ class CreateAccountAdminViewModel @Inject constructor(
             state.denumireFirma.isBlank() -> "Introdu denumirea firmei."
             state.numePrenume.isBlank() -> "Introdu numele si prenumele."
             state.email.isBlank() -> "Introdu email-ul."
+            Validation.emailError(state.email) != null -> Validation.emailError(state.email)
             state.telefon.isBlank() -> "Introdu numarul de telefon."
-            state.telefon.toLongOrNull() == null -> "Numarul de telefon trebuie sa contina doar cifre."
+            Validation.phoneError(state.telefon) != null -> Validation.phoneError(state.telefon)
             state.password.length < 6 -> "Parola trebuie sa aiba cel putin 6 caractere."
             state.password != state.confirmPassword -> "Parolele nu coincid."
             else -> null

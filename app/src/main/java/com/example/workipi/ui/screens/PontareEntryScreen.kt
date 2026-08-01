@@ -1,6 +1,5 @@
 package com.example.workipi.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -25,7 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.workipi.viewmodel.PontareViewModel
+import com.example.workipi.ui.components.ConfirmDialog
+import com.example.workipi.viewmodel.HistoryViewModel
+import com.example.workipi.viewmodel.PontareUiState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,14 +39,12 @@ fun PontareEntryScreen(
     navController: NavController,
     projectId: Long,
     userId: Long,
-    viewModel: PontareViewModel = hiltViewModel(),
+    viewModel: HistoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
 
     var showDatePicker by remember { mutableStateOf(false) }
-    var skillMenuExpanded by remember { mutableStateOf(false) }
-    var zoneMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(projectId) { viewModel.load(projectId) }
 
@@ -53,14 +53,6 @@ fun PontareEntryScreen(
             viewModel.consumeSaved()
             navController.popBackStack()
         }
-    }
-
-    val selectedSkill = state.skills.firstOrNull { it.id == state.selectedSkillId }
-
-    val earnedPointsText = remember(state.selectedSkillId, state.quantity) {
-        val skill = state.skills.firstOrNull { it.id == state.selectedSkillId }
-        val qty = state.quantity.toFloatOrNull() ?: 0f
-        if (skill != null && qty > 0f) "${(skill.points * qty.toInt())} pts" else "—"
     }
 
     Scaffold(
@@ -109,162 +101,17 @@ fun PontareEntryScreen(
                             modifier = Modifier.padding(20.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            val selectedZone = state.zones.firstOrNull { it.id == state.selectedZoneId }
-                            ExposedDropdownMenuBox(
-                                expanded = zoneMenuExpanded,
-                                onExpandedChange = { zoneMenuExpanded = it },
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedZone?.name ?: "Alege zona",
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Zona") },
-                                    trailingIcon = {
-                                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor(),
-                                    shape = RoundedCornerShape(10.dp),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = zoneMenuExpanded,
-                                    onDismissRequest = { zoneMenuExpanded = false },
-                                ) {
-                                    state.zones.forEach { zone ->
-                                        DropdownMenuItem(
-                                            text = { Text("${zone.name ?: "Zona"} • ${zone.surface.toInt()} mp") },
-                                            onClick = {
-                                                viewModel.selectZone(zone.id)
-                                                zoneMenuExpanded = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-
-                            ExposedDropdownMenuBox(
-                                expanded = skillMenuExpanded,
-                                onExpandedChange = { skillMenuExpanded = it },
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedSkill?.let { "${it.name} (${it.unit})" } ?: "Alege lucrare",
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Tip lucrare") },
-                                    trailingIcon = {
-                                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor(),
-                                    shape = RoundedCornerShape(10.dp),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = skillMenuExpanded,
-                                    onDismissRequest = { skillMenuExpanded = false },
-                                ) {
-                                    if (state.skills.isEmpty()) {
-                                        DropdownMenuItem(
-                                            text = { Text("Nicio lucrare definita") },
-                                            onClick = {},
-                                            enabled = false,
-                                        )
-                                    }
-                                    state.skills.forEach { lucrare ->
-                                        DropdownMenuItem(
-                                            text = { Text("${lucrare.name} • ${lucrare.points} pts/${lucrare.unit}") },
-                                            onClick = {
-                                                viewModel.selectSkill(lucrare.id)
-                                                skillMenuExpanded = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-
-                            OutlinedTextField(
-                                value = state.quantity,
-                                onValueChange = viewModel::onQuantityChange,
-                                label = {
-                                    Text("Cantitate" + (selectedSkill?.let { " (${it.unit})" } ?: ""))
-                                },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Decimal,
-                                    imeAction = ImeAction.Next,
-                                ),
-                                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                                shape = RoundedCornerShape(10.dp),
+                            PontareFormBody(
+                                state = state,
+                                onSelectZone = viewModel::selectZone,
+                                onSelectSkill = viewModel::selectSkill,
+                                onQuantityChange = viewModel::onQuantityChange,
+                                onHoursChange = viewModel::onHoursChange,
+                                onQualityChange = viewModel::onQualityChange,
+                                onPickDate = { showDatePicker = true },
+                                onSubmit = { viewModel.submit(userId) },
+                                focusManager = focusManager,
                             )
-
-                            OutlinedTextField(
-                                value = state.hours,
-                                onValueChange = viewModel::onHoursChange,
-                                label = { Text("Ore lucrate") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Decimal,
-                                    imeAction = ImeAction.Done,
-                                ),
-                                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                                shape = RoundedCornerShape(10.dp),
-                            )
-
-                            DateField(
-                                label = "Data pontarii",
-                                millis = state.workDateMillis,
-                                onClick = { showDatePicker = true },
-                            )
-
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text(
-                                    text = "Punctaj cuvenit",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    text = earnedPointsText,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-
-                            state.errorMessage?.let { msg ->
-                                Text(
-                                    text = msg,
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
-
-                            Button(
-                                onClick = { viewModel.submit(userId) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                enabled = !state.isSaving,
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            ) {
-                                if (state.isSaving) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(22.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp,
-                                    )
-                                } else {
-                                    Text("Salveaza pontare", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
                         }
                     }
                 }
@@ -273,28 +120,271 @@ fun PontareEntryScreen(
     }
 
     if (showDatePicker) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = state.workDateMillis)
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        pickerState.selectedDateMillis?.let { viewModel.onWorkDateChange(it) }
-                        showDatePicker = false
-                    },
-                ) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Anuleaza") }
-            },
+        PontareDatePicker(
+            initialMillis = state.workDateMillis,
+            onConfirm = { viewModel.onWorkDateChange(it) },
+            onDismiss = { showDatePicker = false },
+        )
+    }
+
+    if (state.duplicateWarning) {
+        ConfirmDialog(
+            title = "Pontare duplicata",
+            message = "Exista deja o pontare pentru acest angajat, aceasta lucrare, in aceasta zi. Vrei sa o adaugi oricum?",
+            onConfirm = { viewModel.confirmSubmitAnyway(userId) },
+            onDismiss = { viewModel.dismissDuplicateWarning() },
+            confirmLabel = "Adauga oricum",
+            dismissLabel = "Anuleaza",
+        )
+    }
+}
+
+/**
+ * Corpul formularului de pontare (zona, lucrare, cantitate, ore, data, punctaj, buton salveaza).
+ * Refolosit de ecranul de pontare si de popup-ul din Detalii proiect — toata logica sta in HistoryViewModel.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PontareFormBody(
+    state: PontareUiState,
+    onSelectZone: (Long) -> Unit,
+    onSelectSkill: (Long) -> Unit,
+    onQuantityChange: (String) -> Unit,
+    onHoursChange: (String) -> Unit,
+    onQualityChange: (Int) -> Unit,
+    onPickDate: () -> Unit,
+    onSubmit: () -> Unit,
+    focusManager: FocusManager,
+    submitEnabled: Boolean = true,
+    compact: Boolean = false,
+) {
+    var skillMenuExpanded by remember { mutableStateOf(false) }
+    var zoneMenuExpanded by remember { mutableStateOf(false) }
+    var qualityMenuExpanded by remember { mutableStateOf(false) }
+    val fieldText =
+        if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge
+
+    val selectedSkill = state.skills.firstOrNull { it.id == state.selectedSkillId }
+    val earnedPointsText = remember(state.selectedSkillId, state.quantity) {
+        val skill = state.skills.firstOrNull { it.id == state.selectedSkillId }
+        val qty = state.quantity.toFloatOrNull() ?: 0f
+        if (skill != null && qty > 0f) "${(skill.points * qty.toInt())} pts" else "—"
+    }
+
+    val selectedZone = state.zones.firstOrNull { it.id == state.selectedZoneId }
+    ExposedDropdownMenuBox(
+        expanded = zoneMenuExpanded,
+        onExpandedChange = { zoneMenuExpanded = it },
+    ) {
+        OutlinedTextField(
+            value = selectedZone?.name ?: "Alege zona",
+            onValueChange = {},
+            readOnly = true,
+            textStyle = fieldText,
+            label = { Text("Zona") },
+            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+            shape = RoundedCornerShape(10.dp),
+        )
+        ExposedDropdownMenu(
+            expanded = zoneMenuExpanded,
+            onDismissRequest = { zoneMenuExpanded = false },
         ) {
-            DatePicker(state = pickerState)
+            state.zones.forEach { zone ->
+                DropdownMenuItem(
+                    text = { Text("${zone.name ?: "Zona"} • ${zone.surface.toInt()} mp") },
+                    onClick = {
+                        onSelectZone(zone.id)
+                        zoneMenuExpanded = false
+                    },
+                )
+            }
+        }
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = skillMenuExpanded,
+        onExpandedChange = { skillMenuExpanded = it },
+    ) {
+        OutlinedTextField(
+            value = selectedSkill?.let { "${it.name} (${it.unit})" } ?: "Alege lucrare",
+            onValueChange = {},
+            readOnly = true,
+            textStyle = fieldText,
+            label = { Text("Tip lucrare") },
+            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+            shape = RoundedCornerShape(10.dp),
+        )
+        ExposedDropdownMenu(
+            expanded = skillMenuExpanded,
+            onDismissRequest = { skillMenuExpanded = false },
+        ) {
+            if (state.skills.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("Nicio lucrare definita") },
+                    onClick = {},
+                    enabled = false,
+                )
+            }
+            state.skills.forEach { lucrare ->
+                DropdownMenuItem(
+                    text = { Text("${lucrare.name} • ${lucrare.points} pts/${lucrare.unit}") },
+                    onClick = {
+                        onSelectSkill(lucrare.id)
+                        skillMenuExpanded = false
+                    },
+                )
+            }
+        }
+    }
+
+    OutlinedTextField(
+        value = state.quantity,
+        onValueChange = onQuantityChange,
+        textStyle = fieldText,
+        label = { Text("Cantitate" + (selectedSkill?.let { " (${it.unit})" } ?: "")) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Decimal,
+            imeAction = ImeAction.Next,
+        ),
+        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+        shape = RoundedCornerShape(10.dp),
+    )
+
+    OutlinedTextField(
+        value = state.hours,
+        onValueChange = onHoursChange,
+        textStyle = fieldText,
+        label = { Text("Ore lucrate") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Decimal,
+            imeAction = ImeAction.Done,
+        ),
+        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        shape = RoundedCornerShape(10.dp),
+    )
+
+    ExposedDropdownMenuBox(
+        expanded = qualityMenuExpanded,
+        onExpandedChange = { qualityMenuExpanded = it },
+    ) {
+        OutlinedTextField(
+            value = "${state.quality} / 5",
+            onValueChange = {},
+            readOnly = true,
+            textStyle = fieldText,
+            label = { Text("Calitate") },
+            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+            shape = RoundedCornerShape(10.dp),
+        )
+        ExposedDropdownMenu(
+            expanded = qualityMenuExpanded,
+            onDismissRequest = { qualityMenuExpanded = false },
+        ) {
+            (1..5).forEach { q ->
+                DropdownMenuItem(
+                    text = { Text("$q / 5") },
+                    onClick = { onQualityChange(q); qualityMenuExpanded = false },
+                )
+            }
+        }
+    }
+
+    DateField(
+        label = "Data pontarii",
+        millis = state.workDateMillis,
+        onClick = onPickDate,
+        compact = compact,
+    )
+
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = "Punctaj cuvenit",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = earnedPointsText,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+
+    state.errorMessage?.let { msg ->
+        Text(
+            text = msg,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+
+    Button(
+        onClick = onSubmit,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(if (compact) 44.dp else 50.dp),
+        shape = RoundedCornerShape(10.dp),
+        enabled = submitEnabled && !state.isSaving,
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+    ) {
+        if (state.isSaving) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(22.dp),
+                color = Color.White,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text("Salveaza pontare", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateField(label: String, millis: Long, onClick: () -> Unit) {
+fun PontareDatePicker(
+    initialMillis: Long,
+    onConfirm: (Long) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    pickerState.selectedDateMillis?.let { onConfirm(it) }
+                    onDismiss()
+                },
+            ) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Anuleaza") }
+        },
+    ) {
+        DatePicker(state = pickerState)
+    }
+}
+
+@Composable
+private fun DateField(label: String, millis: Long, onClick: () -> Unit, compact: Boolean = false) {
     val formatter = remember {
         SimpleDateFormat("dd MMM yyyy", Locale("ro", "RO")).apply {
             timeZone = TimeZone.getTimeZone("UTC")
@@ -310,7 +400,7 @@ private fun DateField(label: String, millis: Long, onClick: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = if (compact) 8.dp else 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -322,7 +412,7 @@ private fun DateField(label: String, millis: Long, onClick: () -> Unit) {
                 )
                 Text(
                     text = display,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
             }

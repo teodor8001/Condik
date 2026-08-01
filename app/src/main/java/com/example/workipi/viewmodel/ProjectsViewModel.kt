@@ -9,6 +9,9 @@ import com.example.workipi.data.model.Zone
 import com.example.workipi.repository.ProjectRepository
 import com.example.workipi.repository.ZoneRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,9 +23,20 @@ data class ProjectWithProgress(
     val project: Project,
     val totalSurface: Float,
     val completedSurface: Float,
+    val revisionsToDo: Int = 0,
 ) {
     val progress: Float
         get() = if (totalSurface <= 0f) 0f else (completedSurface / totalSurface).coerceIn(0f, 1f)
+
+    val mpPerDay: Float
+        get() {
+            val today = Clock.System.now()
+                .toLocalDateTime(TimeZone.currentSystemDefault()).date
+            val start = project.startDate
+                .toLocalDateTime(TimeZone.currentSystemDefault()).date
+            val days = (today.toEpochDays() - start.toEpochDays()).coerceAtLeast(1)
+            return completedSurface / days
+        }
 }
 
 data class ProjectsUiState(
@@ -75,6 +89,19 @@ class ProjectsViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    fun deleteProject(projectId: Long) {
+        viewModelScope.launch {
+            projectRepository.deleteProject(projectId)
+                .onSuccess { loadProjects() }
+                .onFailure { e ->
+                    Log.e(TAG, "Stergerea proiectului a esuat", e)
+                    _uiState.update {
+                        it.copy(errorMessage = e.message ?: "Stergerea proiectului a esuat.")
+                    }
+                }
         }
     }
 

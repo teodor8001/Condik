@@ -15,6 +15,8 @@ data class User(
     @SerialName("punctaj") val points: Double? = null,
     @SerialName("auth_utilizator_id") val authUserId: String? = null,
     @SerialName("este_checked_in") val isCheckedIn: Boolean = false,
+    // true cat timp angajatul nu si-a schimbat parola initiala setata de admin ("In asteptare").
+    @SerialName("necesita_schimbare_parola") val needsPasswordChange: Boolean = false,
 )
 
 fun User.toUser(): MockUser = MockUser(

@@ -4,12 +4,15 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.mock.MockSession
+import com.example.workipi.data.model.History
 import com.example.workipi.data.model.Lucrare
-import com.example.workipi.data.model.PontareInsert
+import com.example.workipi.data.model.HistoryInsert
 import com.example.workipi.data.model.Zone
-import com.example.workipi.repository.LucrareRepository
-import com.example.workipi.repository.PontareRepository
+import com.example.workipi.repository.AuthRepository
+import com.example.workipi.repository.SkillRepository
+import com.example.workipi.repository.HistoryRepository
 import com.example.workipi.repository.UserRepository
+import com.example.workipi.repository.ZoneHistoryRepository
 import com.example.workipi.repository.ZoneRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,18 +35,22 @@ data class PontareUiState(
     val selectedZoneId: Long? = null,
     val quantity: String = "",
     val hours: String = "",
+    val quality: Int = 5,
     val workDateMillis: Long = Clock.System.now().toEpochMilliseconds(),
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
     val saved: Boolean = false,
+    val duplicateWarning: Boolean = false,
 )
 
 @HiltViewModel
-class PontareViewModel @Inject constructor(
-    private val lucrareRepository: LucrareRepository,
+class HistoryViewModel @Inject constructor(
+    private val authRepository: AuthRepository,
+    private val skillRepository: SkillRepository,
     private val zoneRepository: ZoneRepository,
-    private val pontareRepository: PontareRepository,
+    private val historyRepository: HistoryRepository,
+    private val zoneHistoryRepository: ZoneHistoryRepository,
     private val userRepository: UserRepository,
 ) : ViewModel() {
 
@@ -58,7 +65,7 @@ class PontareViewModel @Inject constructor(
         }
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            val skills = lucrareRepository.getSkillsForCompany(companyId).getOrNull() ?: emptyList()
+            val skills = skillRepository.getSkillsForCompany(companyId).getOrNull() ?: emptyList()
             val zones = zoneRepository.getZonesForProject(projectId).getOrNull() ?: emptyList()
             _uiState.update {
                 it.copy(
@@ -84,10 +91,20 @@ class PontareViewModel @Inject constructor(
     fun onHoursChange(value: String) =
         _uiState.update { it.copy(hours = value.filter { c -> c.isDigit() || c == '.' }, errorMessage = null) }
 
+    fun onQualityChange(value: Int) =
+        _uiState.update { it.copy(quality = value.coerceIn(1, 5), errorMessage = null) }
+
     fun onWorkDateChange(millis: Long) =
         _uiState.update { it.copy(workDateMillis = millis, errorMessage = null) }
 
-    fun submit(userId: Long) {
+    fun submit(userId: Long) = trySubmit(userId, force = false)
+
+    /** Salveaza chiar daca exista deja o pontare identica (userul a confirmat in dialog). */
+    fun confirmSubmitAnyway(userId: Long) = trySubmit(userId, force = true)
+
+    fun dismissDuplicateWarning() = _uiState.update { it.copy(duplicateWarning = false) }
+
+    private fun trySubmit(userId: Long, force: Boolean) {
         val state = _uiState.value
         val skill = state.skills.firstOrNull { it.id == state.selectedSkillId }
         val quantity = state.quantity.toFloatOrNull()
@@ -112,14 +129,28 @@ class PontareViewModel @Inject constructor(
                 val workDate = Instant.fromEpochMilliseconds(state.workDateMillis)
                     .toLocalDateTime(TimeZone.UTC).date
 
-                pontareRepository.createPontare(
-                    PontareInsert(
+                // Verifica daca exista deja o pontare identica in proiect (acelasi angajat,
+                // aceeasi lucrare, aceeasi zi) — ca sa nu se dubleze din greseala.
+                if (!force) {
+                    val zoneIds = state.zones.map { it.id }
+                    val existing = historyRepository.getByZones(zoneIds).getOrDefault(emptyList())
+                    val isDuplicate = existing.any {
+                        it.userId == userId && it.idLucrare == skill!!.id && it.workDate == workDate
+                    }
+                    if (isDuplicate) {
+                        _uiState.update { it.copy(isSaving = false, duplicateWarning = true) }
+                        return@launch
+                    }
+                }
+
+                historyRepository.createHistory(
+                    HistoryInsert(
                         userId = userId,
                         idLucrare = skill!!.id,
                         idZona = zoneId!!,
                         hours = hours!!,
                         quantity = quantity!!,
-                        quality = 1.0f,
+                        quality = state.quality.toFloat(),
                         workDate = workDate,
                     )
                 ).getOrThrow()
@@ -127,11 +158,15 @@ class PontareViewModel @Inject constructor(
                 val earnedPoints = skill.points.toDouble() * quantity
                 userRepository.addPoints(userId, earnedPoints).getOrThrow()
 
+                // Increment progres lucrare in zone_lucrari (sursa de adevar pentru bara de progres)
+                zoneHistoryRepository.incrementCompleted(zoneId, skill.id, quantity)
+                    .onFailure { e -> Log.e(TAG, "Increment cantitate_lucrata esuat", e) }
+
                 if (skill.unit.equals(UNIT_MP, ignoreCase = true)) {
                     zoneRepository.addCompletedSurface(zoneId, quantity).getOrThrow()
                 }
 
-                _uiState.update { it.copy(isSaving = false, saved = true) }
+                _uiState.update { it.copy(isSaving = false, saved = true, duplicateWarning = false) }
             } catch (e: Throwable) {
                 Log.e(TAG, "Eroare la salvarea pontarii", e)
                 _uiState.update {

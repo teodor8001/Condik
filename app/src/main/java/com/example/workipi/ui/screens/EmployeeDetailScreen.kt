@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -28,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -36,6 +39,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.navigation.NavController
 import com.example.workipi.data.model.User
 import com.example.workipi.navigation.Screen
+import com.example.workipi.util.Validation
 import com.example.workipi.ui.components.LocalOpenDrawer
 import com.example.workipi.viewmodel.EmployeeDetailViewModel
 import com.example.workipi.viewmodel.EmployeeSkill
@@ -62,6 +66,7 @@ fun EmployeeDetailScreen(
     }
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -82,6 +87,16 @@ fun EmployeeDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { showEditDialog = true },
+                        enabled = state.employee != null,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = "Editeaza profil",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     IconButton(
                         onClick = { showDeleteDialog = true },
                         enabled = state.employee != null && !state.isDeleting,
@@ -169,6 +184,97 @@ fun EmployeeDetailScreen(
             },
         )
     }
+
+    val emp = state.employee
+    if (showEditDialog && emp != null) {
+        EditEmployeeDialog(
+            employee = emp,
+            onDismiss = { showEditDialog = false },
+            onSave = { name, phone, role, salary ->
+                viewModel.updateEmployee(employeeId, name, phone, role, salary)
+                showEditDialog = false
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditEmployeeDialog(
+    employee: User,
+    onDismiss: () -> Unit,
+    onSave: (name: String, phone: Long, role: String, salary: Double?) -> Unit,
+) {
+    var name by remember { mutableStateOf(employee.fullName) }
+    var phone by remember { mutableStateOf(employee.phoneNumber.toString()) }
+    var role by remember { mutableStateOf(employee.role ?: "angajat") }
+    var salary by remember { mutableStateOf(employee.salary?.let { it.toInt().toString() } ?: "") }
+    var roleMenu by remember { mutableStateOf(false) }
+    val roles = listOf("angajat", "inginer", "client")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Editeaza profil") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it },
+                    label = { Text("Nume si prenume") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp),
+                )
+                OutlinedTextField(
+                    value = phone, onValueChange = { phone = it.filter { c -> c.isDigit() } },
+                    label = { Text("Telefon") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    shape = RoundedCornerShape(10.dp),
+                )
+                ExposedDropdownMenuBox(expanded = roleMenu, onExpandedChange = { roleMenu = it }) {
+                    OutlinedTextField(
+                        value = role.replaceFirstChar { it.uppercase() },
+                        onValueChange = {}, readOnly = true, label = { Text("Rol") },
+                        trailingIcon = { Icon(Icons.Filled.ArrowDropDown, null) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        shape = RoundedCornerShape(10.dp),
+                    )
+                    ExposedDropdownMenu(expanded = roleMenu, onDismissRequest = { roleMenu = false }) {
+                        roles.forEach { r ->
+                            DropdownMenuItem(
+                                text = { Text(r.replaceFirstChar { it.uppercase() }) },
+                                onClick = { role = r; roleMenu = false },
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = salary, onValueChange = { salary = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Salariu (RON)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(10.dp),
+                )
+                if (phone.isNotBlank() && !Validation.isValidPhone(phone)) {
+                    Text(
+                        text = "Telefonul trebuie sa aiba 10 cifre.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(name.trim(), phone.toLongOrNull() ?: employee.phoneNumber, role, salary.toDoubleOrNull())
+                },
+                enabled = name.isNotBlank() && Validation.isValidPhone(phone),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            ) { Text("Salveaza") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Anuleaza") }
+        },
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -377,7 +483,7 @@ private fun EmployeePontareRow(entry: PontareEntry) {
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = "${entry.pontare.workDate ?: "—"} • ${entry.pontare.quantity.toInt()} ${entry.lucrareUnit} • ${entry.pontare.hours?.toInt() ?: 0}h",
+                text = "${entry.history.workDate ?: "—"} • ${entry.history.quantity.toInt()} ${entry.lucrareUnit} • ${entry.history.hours?.toInt() ?: 0}h",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

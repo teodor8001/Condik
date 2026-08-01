@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.mock.MockSession
 import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.LucrareInsert
-import com.example.workipi.repository.LucrareRepository
+import com.example.workipi.repository.SkillRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +24,7 @@ data class PreturiUiState(
 
 @HiltViewModel
 class PreturiViewModel @Inject constructor(
-    private val lucrareRepository: LucrareRepository,
+    private val skillRepository: SkillRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PreturiUiState())
@@ -42,7 +42,7 @@ class PreturiViewModel @Inject constructor(
         }
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            lucrareRepository.getSkillsForCompany(companyId)
+            skillRepository.getSkillsForCompany(companyId)
                 .onSuccess { list ->
                     _uiState.update { it.copy(isLoading = false, skills = list.sortedBy { s -> s.name }) }
                 }
@@ -62,7 +62,7 @@ class PreturiViewModel @Inject constructor(
         val companyId = MockSession.currentUser?.idCompany ?: return
         _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
-            lucrareRepository.createSkill(
+            skillRepository.createSkill(
                 LucrareInsert(
                     name = name.trim(),
                     unit = unit,
@@ -94,7 +94,7 @@ class PreturiViewModel @Inject constructor(
     fun updateSkill(id: Long, name: String, unit: String, price: Float, points: Long) {
         _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
-            lucrareRepository.updateSkill(id, name.trim(), unit, price, points)
+            skillRepository.updateSkill(id, name.trim(), unit, price, points)
                 .onSuccess {
                     _uiState.update { state ->
                         val updated = state.skills.map { s ->
@@ -110,6 +110,30 @@ class PreturiViewModel @Inject constructor(
                         it.copy(
                             isSaving = false,
                             errorMessage = e.message ?: "Salvarea a esuat. Incearca din nou.",
+                        )
+                    }
+                }
+        }
+    }
+
+    fun deleteSkill(id: Long) {
+        _uiState.update { it.copy(isSaving = true, errorMessage = null) }
+        viewModelScope.launch {
+            skillRepository.deleteSkill(id)
+                .onSuccess {
+                    _uiState.update { state ->
+                        state.copy(
+                            isSaving = false,
+                            skills = state.skills.filterNot { it.id == id },
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    Log.e(TAG, "Eroare la stergere lucrare", e)
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            errorMessage = e.message ?: "Stergerea a esuat.",
                         )
                     }
                 }

@@ -22,8 +22,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.navigation.NavController
+import com.example.workipi.data.model.InvitationCode
 import com.example.workipi.data.model.User
 import com.example.workipi.navigation.Screen
+import com.example.workipi.ui.components.ConfirmDialog
 import com.example.workipi.ui.components.LocalOpenDrawer
 import com.example.workipi.viewmodel.AngajatiViewModel
 
@@ -41,6 +43,7 @@ fun AngajatiScreen(
     val state by viewModel.uiState.collectAsState()
     val openDrawer = LocalOpenDrawer.current
     var sortBy by remember { mutableStateOf(SortBy.ALFABETIC) }
+    var pendingUncheck by remember { mutableStateOf<User?>(null) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.loadEmployees() }
 
@@ -170,7 +173,7 @@ fun AngajatiScreen(
                     color = MaterialTheme.colorScheme.error,
                 )
             }
-            state.employees.isEmpty() -> {
+            state.employees.isEmpty() && state.pendingInvites.isEmpty() -> {
                 Text(
                     text = "Nu ai inca angajati. Apasa Adauga nou angajat.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -196,6 +199,10 @@ fun AngajatiScreen(
                                         Screen.EmployeeDetail.createRoute(employee.idUser)
                                     )
                                 },
+                                onCheckedChange = { checked ->
+                                    if (checked) viewModel.setCheckedIn(employee.idUser, true)
+                                    else pendingUncheck = employee
+                                },
                             )
                             if (index < sorted.lastIndex) {
                                 HorizontalDivider(
@@ -204,15 +211,44 @@ fun AngajatiScreen(
                                 )
                             }
                         }
+
+                        if (state.pendingInvites.isNotEmpty()) {
+                            item {
+                                PendingSectionHeader(count = state.pendingInvites.size)
+                            }
+                            itemsIndexed(state.pendingInvites) { index, invite ->
+                                PendingInviteRow(invite = invite)
+                                if (index < state.pendingInvites.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 20.dp),
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
+
+    pendingUncheck?.let { emp ->
+        ConfirmDialog(
+            title = "Esti sigur?",
+            message = "Scoti check-in-ul pentru ${emp.fullName}?",
+            onConfirm = { viewModel.setCheckedIn(emp.idUser, false); pendingUncheck = null },
+            onDismiss = { pendingUncheck = null },
+        )
+    }
 }
 
 @Composable
-private fun AngajatRow(number: Int, employee: User, onClick: () -> Unit) {
+private fun AngajatRow(
+    number: Int,
+    employee: User,
+    onClick: () -> Unit,
+    onCheckedChange: (Boolean) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -261,12 +297,102 @@ private fun AngajatRow(number: Int, employee: User, onClick: () -> Unit) {
             )
         }
 
+        if (employee.needsPasswordChange) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = "In asteptare",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
         employee.salary?.let { salary ->
             Text(
                 text = "${salary.toInt()} RON",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        Checkbox(
+            checked = employee.isCheckedIn,
+            onCheckedChange = onCheckedChange,
+        )
+    }
+}
+
+@Composable
+private fun PendingSectionHeader(count: Int) {
+    Text(
+        text = "In asteptare ($count)",
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun PendingInviteRow(invite: InvitationCode) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(start = 28.dp)
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = invite.fullName
+                    .split(" ")
+                    .take(2)
+                    .joinToString("") { it.firstOrNull()?.uppercase() ?: "" },
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = invite.fullName,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = invite.role.replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        ) {
+            Text(
+                text = "In asteptare",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

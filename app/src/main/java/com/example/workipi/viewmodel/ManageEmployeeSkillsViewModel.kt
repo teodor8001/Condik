@@ -8,7 +8,7 @@ import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.SkillLevel
 import com.example.workipi.data.model.UtilizatorLucrareInsert
 import com.example.workipi.data.model.toSkillLevel
-import com.example.workipi.repository.LucrareRepository
+import com.example.workipi.repository.SkillRepository
 import com.example.workipi.repository.UtilizatorLucrareRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +31,7 @@ data class ManageEmployeeSkillsUiState(
 @HiltViewModel
 class ManageEmployeeSkillsViewModel @Inject constructor(
     private val utilizatorLucrareRepository: UtilizatorLucrareRepository,
-    private val lucrareRepository: LucrareRepository,
+    private val skillRepository: SkillRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ManageEmployeeSkillsUiState())
@@ -45,7 +45,7 @@ class ManageEmployeeSkillsViewModel @Inject constructor(
         }
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            val available = lucrareRepository.getSkillsForCompany(companyId).getOrNull()
+            val available = skillRepository.getSkillsForCompany(companyId).getOrNull()
             val userSkills = utilizatorLucrareRepository.getSkillsForUser(userId).getOrNull()
             if (available == null || userSkills == null) {
                 _uiState.update {

@@ -18,11 +18,13 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.workipi.data.mock.MockSession
 import com.example.workipi.data.model.UserRole
 import com.example.workipi.navigation.Screen
+import com.example.workipi.viewmodel.SessionViewModel
 import kotlinx.coroutines.launch
 
 // ---------------------------------------------------------------------------
@@ -43,17 +45,34 @@ private data class NavItem(
 private val adminItems = listOf(
     NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
     NavItem(Screen.Proiecte,    "Proiecte",   Icons.Filled.Business),
-    NavItem(Screen.Pontare,     "Pontare",    Icons.Filled.Timer),
-    NavItem(Screen.Calitate,    "Calitate",   Icons.Filled.VerifiedUser),
     NavItem(Screen.Angajati,    "Angajati",   Icons.Filled.Group),
     NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
-    NavItem(Screen.Preturi,     "Preturi",    Icons.Filled.Payments),
+    NavItem(Screen.Firma,       "Firma",      Icons.Filled.Domain),
+    NavItem(Screen.Ofertare,    "Ofertare",   Icons.Filled.Description),
 )
 
 private val angajatItems = listOf(
     NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
     NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
 )
+
+// Ecrane de editare/adaugare: la navigare in afara lor (din meniu) intrebam intai
+// daca userul vrea sa renunte, ca sa nu piarda ce a introdus.
+private val editRoutes = setOf(
+    Screen.AddProject.route,
+    Screen.AddEmployee.route,
+    Screen.ManageEmployeeSkills.route,
+    Screen.AssignEmployees.route,
+    Screen.PontareEntry.route,
+)
+
+/**
+ * Permite unui ecran de editare sa dezactiveze temporar confirmarea de la navigare
+ * (ex. dupa ce s-a generat codul de invitatie, editarea s-a terminat -> nu mai intrebam).
+ */
+object NavEditGuard {
+    var skipConfirm by mutableStateOf(false)
+}
 
 // ---------------------------------------------------------------------------
 // Continutul vizual al drawer-ului (header + itemi + footer)
@@ -70,6 +89,8 @@ private fun DrawerContent(
         UserRole.ANGAJAT -> angajatItems
         else             -> adminItems
     }
+    val sessionViewModel: SessionViewModel = hiltViewModel()
+    var pendingNav by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     Column(
         modifier = Modifier
@@ -84,7 +105,7 @@ private fun DrawerContent(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                text = "WorkIPI",
+                text = "CONDIK",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -126,12 +147,22 @@ private fun DrawerContent(
                     },
                     selected = selected,
                     onClick = {
-                        onItemClick()
                         if (currentRoute != item.screen.route) {
-                            navController.navigate(item.screen.route) {
-                                popUpTo(Screen.Home.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+                            val doNavigate = {
+                                onItemClick()
+                                navController.navigate(item.screen.route) {
+                                    // Curata back stack-ul pana la Home, ca sa nu ramana
+                                    // ecrane de detaliu (ex. ProjectDetail) deasupra destinatiei.
+                                    popUpTo(Screen.Home.route)
+                                    launchSingleTop = true
+                                }
+                            }
+                            // Daca esti pe un ecran de editare (si editarea nu s-a terminat),
+                            // confirma intai renuntarea.
+                            if (currentRoute in editRoutes && !NavEditGuard.skipConfirm) {
+                                pendingNav = doNavigate
+                            } else {
+                                doNavigate()
                             }
                         }
                     },
@@ -236,14 +267,27 @@ private fun DrawerContent(
                         },
                         onClick = {
                             menuExpanded = false
-                            MockSession.currentUser = null
-                            navController.navigate(Screen.Login.route) {
-                                popUpTo(0) { inclusive = true }
+                            onCloseDrawer()
+                            sessionViewModel.logout {
+                                navController.navigate(Screen.Login.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
                         }
                     )
                 }
             }
+        }
+
+        pendingNav?.let { proceed ->
+            ConfirmDialog(
+                title = "Renunti la modificari?",
+                message = "Daca pleci de aici, ce ai introdus se va pierde.",
+                onConfirm = { pendingNav = null; proceed() },
+                onDismiss = { pendingNav = null },
+                confirmLabel = "Da, renunt",
+                dismissLabel = "Nu",
+            )
         }
     }
 }
@@ -258,7 +302,11 @@ fun AppNavigationDrawer(
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute   = backStackEntry?.destination?.route
-    val authRoutes     = setOf(Screen.Login.route, Screen.CreateAccount.route)
+    val authRoutes     = setOf(
+        Screen.Login.route,
+        Screen.CreateCompany.route,
+        Screen.ActivateAccount.route,
+    )
     val showDrawer     = currentRoute != null && currentRoute !in authRoutes
 
     if (!showDrawer) {
@@ -286,7 +334,7 @@ fun AppNavigationDrawer(
             }
         ) {
             // statusBarsPadding o singura data, la nivel de wrapper
-            Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            Box(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 content()
             }
         }
@@ -311,7 +359,7 @@ fun AppNavigationDrawer(
             }
         ) {
             // statusBarsPadding o singura data, la nivel de wrapper
-            Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            Box(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 content()
             }
         }

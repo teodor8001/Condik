@@ -53,7 +53,9 @@ fun LoginScreen(
         val utilizator = state.signedInUser ?: return@LaunchedEffect
         MockSession.currentUser = utilizator.toUser()
         viewModel.consumeSignedInUser()
-        navController.navigate(Screen.Home.route) {
+        // Angajatii creati de admin trebuie sa-si schimbe parola initiala inainte de a intra in aplicatie.
+        val destination = if (utilizator.needsPasswordChange) Screen.ChangePassword.route else Screen.Home.route
+        navController.navigate(destination) {
             popUpTo(Screen.Login.route) { inclusive = true }
         }
     }
@@ -126,7 +128,7 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "WorkIPI",
+                        text = "Condik",
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -264,11 +266,22 @@ fun LoginScreen(
                     }
 
                     TextButton(
-                        onClick = { navController.navigate(Screen.CreateAccount.route) },
+                        onClick = { navController.navigate(Screen.CreateCompany.route) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "Creeaza cont firma noua",
+                            text = "Creeaza firma noua",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    TextButton(
+                        onClick = { navController.navigate(Screen.ActivateAccount.route) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Am un cod de invitatie",
                             color = MaterialTheme.colorScheme.primary,
                             fontSize = 14.sp
                         )

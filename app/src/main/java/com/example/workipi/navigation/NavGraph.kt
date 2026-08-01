@@ -10,17 +10,30 @@ import com.example.workipi.ui.components.AppNavigationDrawer
 import com.example.workipi.ui.screens.*
 
 @Composable
-fun NavGraph(navController: NavHostController) {
+fun NavGraph(
+    navController: NavHostController,
+    startDestination: String = Screen.Login.route,
+) {
     AppNavigationDrawer(navController = navController) {
         NavHost(
             navController    = navController,
-            startDestination = Screen.Login.route
+            startDestination = startDestination
         ) {
-            composable(Screen.Login.route)         { LoginScreen(navController) }
-            composable(Screen.CreateAccount.route) { CreateAccountScreen(navController) }
+            composable(Screen.Login.route)            { LoginScreen(navController) }
+            composable(Screen.CreateCompany.route)    { CreateCompanyScreen(navController) }
+            composable(Screen.ActivateAccount.route)  { ActivateAccountScreen(navController) }
+            composable(Screen.ChangePassword.route)   { ChangePasswordScreen(navController) }
             composable(Screen.Home.route)          { HomeScreen(navController) }
             composable(Screen.Proiecte.route)    { ProjectsScreen(navController) }
-            composable(Screen.AddProject.route)  { AddProjectScreen(navController) }
+            composable(
+                route = Screen.AddProject.route,
+                arguments = listOf(navArgument("offer") { type = NavType.BoolType; defaultValue = false })
+            ) { backStackEntry ->
+                AddProjectScreen(
+                    navController = navController,
+                    isOffer = backStackEntry.arguments?.getBoolean("offer") ?: false,
+                )
+            }
             composable(
                 route = Screen.ProjectDetail.route,
                 arguments = listOf(navArgument("projectId") { type = NavType.LongType })
@@ -52,7 +65,6 @@ fun NavGraph(navController: NavHostController) {
                     userId = backStackEntry.arguments?.getLong("userId") ?: 0L,
                 )
             }
-            composable(Screen.Pontare.route)     { PontareScreen(navController) }
             composable(Screen.Calitate.route)    { CalitateScreen(navController) }
             composable(Screen.Angajati.route)    { AngajatiScreen(navController) }
             composable(Screen.AddEmployee.route) { AddEmployeeScreen(navController) }
@@ -75,7 +87,8 @@ fun NavGraph(navController: NavHostController) {
                 )
             }
             composable(Screen.Leaderboard.route) { LeaderboardScreen(navController) }
-            composable(Screen.Preturi.route)     { PreturiScreen(navController) }
+            composable(Screen.Firma.route)       { FirmaScreen(navController) }
+            composable(Screen.Ofertare.route)    { OfertareScreen(navController) }
             composable(Screen.Settings.route)    { SettingsScreen(navController) }
         }
     }
