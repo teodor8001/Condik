@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val sessionViewModel: SessionViewModel = hiltViewModel()
                     val state by sessionViewModel.state.collectAsState()
+                    val sessionState by sessionViewModel.sessionState.collectAsState()
 
                     when (val s = state) {
                         is SessionViewModel.StartupState.Loading -> {
@@ -45,6 +46,7 @@ class MainActivity : ComponentActivity() {
                             NavGraph(
                                 navController = navController,
                                 startDestination = s.startRoute,
+                                sessionState = sessionState,
                             )
                         }
                     }

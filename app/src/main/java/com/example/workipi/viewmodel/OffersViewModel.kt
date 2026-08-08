@@ -3,7 +3,7 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.Project
 import com.example.workipi.repository.ProjectRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,6 +23,7 @@ data class OffersUiState(
 @HiltViewModel
 class OffersViewModel @Inject constructor(
     private val projectRepository: ProjectRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OffersUiState())
@@ -31,7 +32,7 @@ class OffersViewModel @Inject constructor(
     init { loadOffers() }
 
     fun loadOffers() {
-        val companyId = MockSession.currentUser?.idCompany
+        val companyId = sessionStore.state.value.user?.companyId
         if (companyId == null) {
             _uiState.update { it.copy(errorMessage = "Nu am putut identifica firma.") }
             return

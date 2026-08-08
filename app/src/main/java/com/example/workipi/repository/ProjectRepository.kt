@@ -4,7 +4,10 @@ import com.example.workipi.data.model.Project
 import com.example.workipi.data.model.ProjectInsert
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import javax.inject.Inject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private const val TABLE = "proiecte"
 
@@ -12,30 +15,23 @@ class ProjectRepository @Inject constructor(
     val client: SupabaseClient
 ) {
     suspend fun getProjectsByCompanyId(companyId: Long): List<Project> =
-         client.from(TABLE)
-            .select {
-                filter {
-                    eq("id_firma", companyId)
-                    eq("este_oferta", false)
-                }
-            }
+         client.postgrest
+            .rpc("get_visible_projects")
             .decodeList<Project>()
+            .filter { it.companyId == companyId && !it.isOffer }
 
     suspend fun getOffersByCompanyId(companyId: Long): List<Project> =
-        client.from(TABLE)
-            .select {
-                filter {
-                    eq("id_firma", companyId)
-                    eq("este_oferta", true)
-                }
-            }
+        client.postgrest
+            .rpc("get_visible_projects")
             .decodeList<Project>()
+            .filter { it.companyId == companyId && it.isOffer }
 
     suspend fun getProjectById(projectId: Long): Project? =
-        client.from(TABLE)
-            .select {
-                filter { eq("id_proiect", projectId)}
-            }
+        client.postgrest
+            .rpc(
+                "get_visible_project",
+                buildJsonObject { put("p_project_id", projectId) },
+            )
             .decodeSingleOrNull()
 
     suspend fun createProject(data: ProjectInsert): Result<Project> = runCatching {

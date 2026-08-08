@@ -27,8 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.workipi.data.mock.MockSession
-import com.example.workipi.data.model.toUser
 import com.example.workipi.navigation.Screen
 import com.example.workipi.viewmodel.CreateAccountRegularViewModel
 
@@ -42,7 +40,6 @@ fun ActivateAccountScreen(
 
     LaunchedEffect(state.createdUser) {
         val user = state.createdUser ?: return@LaunchedEffect
-        MockSession.currentUser = user.toUser()
         viewModel.consumeCreatedUser()
         navController.navigate(Screen.Home.route) {
             popUpTo(Screen.Login.route) { inclusive = true }

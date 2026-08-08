@@ -5,11 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.workipi.data.model.InvitationCode
 import com.example.workipi.data.model.User
-import com.example.workipi.data.model.UtilizatorLucrareInsert
 import com.example.workipi.repository.AuthRepository
-import com.example.workipi.repository.InvitationCodeLucrareRepository
 import com.example.workipi.repository.InvitationCodeRepository
-import com.example.workipi.repository.UtilizatorLucrareRepository
+import com.example.workipi.session.SessionStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,8 +32,7 @@ data class CreateRegularAccountUiState(
 class CreateAccountRegularViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val codeRepository: InvitationCodeRepository,
-    private val utilizatorLucrareRepository: UtilizatorLucrareRepository,
-    private val invitationCodeLucrareRepository: InvitationCodeLucrareRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CreateRegularAccountUiState())
     val uiState: StateFlow<CreateRegularAccountUiState> = _uiState.asStateFlow()
@@ -111,37 +108,16 @@ class CreateAccountRegularViewModel @Inject constructor(
             }
 
             authRepository.signUpEmployee(
-                fullName = invitationCode.fullName,
-                phoneNumber = invitationCode.phoneNumber,
+                invitationCode = invitationCode.code,
                 email = invitationCode.email,
-                role = invitationCode.role,
-                companyId = invitationCode.companyId,
                 password = state.password,
-                salary = invitationCode.salary,
             )
+                .mapCatching { utilizator ->
+                    sessionStore.open(utilizator, authRepository.getCurrentPermissions())
+                    utilizator
+                }
                 .onSuccess { utilizator ->
                     Log.d(TAG, "Userul ${invitationCode.fullName} este creat cu success")
-
-                    // Citesc skills-urile pre-configurate pe cod
-                    val codeSkills = invitationCodeLucrareRepository
-                        .getSkillsForCode(invitationCode.id)
-                        .getOrDefault(emptyList())
-
-                    // Le copiez in utilizatori_lucrari pentru noul user
-                    val skillRows = codeSkills.map {
-                        UtilizatorLucrareInsert(
-                            userId = utilizator.idUser,
-                            idLucrare = it.idLucrare,
-                            skillLevel = it.skillLevel,
-                        )
-                    }
-                    utilizatorLucrareRepository.assignSkills(skillRows)
-                        .onFailure { e -> Log.e(TAG, "Skills nu s-au atasat (continuam)", e) }
-
-                    // Sterg codul — randurile din coduri_invitatie_lucrari pleaca prin CASCADE
-                    codeRepository.deleteByCode(invitationCode.code)
-                        .onFailure { e -> Log.e(TAG, "Codul nu a fost sters (continuam)", e) }
-
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -150,12 +126,14 @@ class CreateAccountRegularViewModel @Inject constructor(
                         )
                     }
                 }
-                .onFailure {
+                .onFailure { error ->
+                    runCatching { authRepository.signOut() }
+                    sessionStore.clear()
                     Log.d(TAG, "Userul nu s-a putut crea cu succes")
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = "Userul nu s-a putut crea cu success"
+                            errorMessage = error.message ?: "Userul nu s-a putut crea cu success"
                         )
                     }
                 }

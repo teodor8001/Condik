@@ -3,7 +3,7 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.History
 import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.HistoryInsert
@@ -52,13 +52,14 @@ class HistoryViewModel @Inject constructor(
     private val historyRepository: HistoryRepository,
     private val zoneHistoryRepository: ZoneHistoryRepository,
     private val userRepository: UserRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PontareUiState())
     val uiState: StateFlow<PontareUiState> = _uiState.asStateFlow()
 
     fun load(projectId: Long) {
-        val companyId = MockSession.currentUser?.idCompany
+        val companyId = sessionStore.state.value.user?.companyId
         if (companyId == null) {
             _uiState.update { it.copy(errorMessage = "Nu am putut identifica firma.") }
             return

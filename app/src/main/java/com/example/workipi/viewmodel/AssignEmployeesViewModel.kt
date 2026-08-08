@@ -3,7 +3,7 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.User
 import com.example.workipi.repository.ProjectRepository
 import com.example.workipi.repository.UserProjectRepository
@@ -31,13 +31,14 @@ class AssignEmployeesViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val userProjectRepository: UserProjectRepository,
     private val projectRepository: ProjectRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AssignEmployeesUiState())
     val uiState: StateFlow<AssignEmployeesUiState> = _uiState.asStateFlow()
 
     fun load(projectId: Long) {
-        val companyId = MockSession.currentUser?.idCompany
+        val companyId = sessionStore.state.value.user?.companyId
         if (companyId == null) {
             _uiState.update { it.copy(errorMessage = "Nu am putut identifica firma. Reautentifica-te.") }
             return

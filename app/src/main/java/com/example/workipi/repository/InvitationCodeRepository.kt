@@ -4,7 +4,10 @@ import com.example.workipi.data.model.InvitationCode
 import com.example.workipi.data.model.InvitationCodeInsert
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import javax.inject.Inject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private const val TABLE = "coduri_invitatie"
 
@@ -17,10 +20,11 @@ class InvitationCodeRepository @Inject constructor(
             .decodeSingle()
 
     suspend fun getCodeByName(code: String): InvitationCode? =
-        client.from(TABLE)
-            .select {
-                filter { eq("cod", code) }
-            }
+        client.postgrest
+            .rpc(
+                "get_valid_invitation",
+                buildJsonObject { put("p_code", code.trim().uppercase()) },
+            )
             .decodeSingleOrNull()
 
     /** Codurile de invitatie nefolosite ale unei firme — angajati invitati care nu si-au activat inca contul. */

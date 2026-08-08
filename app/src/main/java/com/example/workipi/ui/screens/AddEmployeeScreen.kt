@@ -41,7 +41,9 @@ import com.example.workipi.viewmodel.InvitationCodeViewModel
 
 private enum class InviteRole(val label: String, val role: UserRole) {
     ANGAJAT("Angajat", UserRole.ANGAJAT),
-    INGINER("Inginer", UserRole.PROJECT_MANAGER),
+    SEF_ECHIPA("Sef de echipa", UserRole.SEF_ECHIPA),
+    INGINER("Inginer", UserRole.INGINER),
+    MANAGER("Manager", UserRole.MANAGER),
     CLIENT("Client", UserRole.CLIENT),
 }
 

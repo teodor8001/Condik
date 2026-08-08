@@ -3,7 +3,7 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.Project
 import com.example.workipi.data.model.ProjectInsert
@@ -64,6 +64,7 @@ class AddProjectViewModel @Inject constructor(
     private val skillRepository: SkillRepository,
     private val historyRepository: HistoryRepository,
     private val zoneHistoryRepository: ZoneHistoryRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddProjectUiState())
@@ -74,7 +75,7 @@ class AddProjectViewModel @Inject constructor(
     }
 
     private fun loadData() {
-        val companyId = MockSession.currentUser?.idCompany ?: return
+        val companyId = sessionStore.state.value.user?.companyId ?: return
         viewModelScope.launch {
             val employees = userRepository.getEmployeesByCompanyId(companyId).getOrDefault(emptyList())
             val skills = skillRepository.getSkillsForCompany(companyId).getOrDefault(emptyList())
@@ -165,7 +166,7 @@ class AddProjectViewModel @Inject constructor(
 
     fun submit() {
         val state = _uiState.value
-        val companyId = MockSession.currentUser?.idCompany
+        val companyId = sessionStore.state.value.user?.companyId
         val budget = state.budget.toFloatOrNull()
 
         val error = when {

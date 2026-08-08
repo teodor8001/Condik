@@ -3,7 +3,7 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.HistoryInsert
 import com.example.workipi.data.model.Project
@@ -59,6 +59,7 @@ class StandalonePontareViewModel @Inject constructor(
     private val zoneRepository: ZoneRepository,
     private val historyRepository: HistoryRepository,
     private val zoneHistoryRepository: com.example.workipi.repository.ZoneHistoryRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StandalonePontareUiState())
@@ -69,7 +70,7 @@ class StandalonePontareViewModel @Inject constructor(
     }
 
     fun load() {
-        val companyId = MockSession.currentUser?.idCompany
+        val companyId = sessionStore.state.value.user?.companyId
         if (companyId == null) {
             _uiState.update { it.copy(errorMessage = "Nu am putut identifica firma.") }
             return

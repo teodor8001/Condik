@@ -4,8 +4,11 @@ import com.example.workipi.data.model.User
 import com.example.workipi.data.model.UtilizatorInsert
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 @Singleton
 class UserRepository @Inject constructor(
@@ -28,8 +31,11 @@ class UserRepository @Inject constructor(
             .decodeSingleOrNull()
 
     suspend fun findById(id: Long): Result<User?> = runCatching {
-        client.from(TABLE)
-            .select { filter { eq("id_utilizator", id) } }
+        client.postgrest
+            .rpc(
+                "get_visible_user",
+                buildJsonObject { put("p_user_id", id) },
+            )
             .decodeSingleOrNull()
     }
 
@@ -39,9 +45,10 @@ class UserRepository @Inject constructor(
             .decodeSingle()
 
     suspend fun getEmployeesByCompanyId(companyId: Long): Result<List<User>> = runCatching {
-        client.from(TABLE)
-            .select { filter { eq("id_firma", companyId) } }
-            .decodeList()
+        client.postgrest
+            .rpc("get_visible_users")
+            .decodeList<User>()
+            .filter { it.idCompany == companyId }
     }
 
     suspend fun updateEmployee(

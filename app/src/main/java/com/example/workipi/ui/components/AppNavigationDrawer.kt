@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -21,9 +20,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.data.model.AppPermission
 import com.example.workipi.data.model.UserRole
 import com.example.workipi.navigation.Screen
+import com.example.workipi.ui.session.LocalSessionState
 import com.example.workipi.viewmodel.SessionViewModel
 import kotlinx.coroutines.launch
 
@@ -39,21 +39,19 @@ val LocalOpenDrawer = compositionLocalOf<(() -> Unit)?> { null }
 private data class NavItem(
     val screen: Screen,
     val label: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val permission: AppPermission,
 )
 
-private val adminItems = listOf(
-    NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
-    NavItem(Screen.Proiecte,    "Proiecte",   Icons.Filled.Business),
-    NavItem(Screen.Angajati,    "Angajati",   Icons.Filled.Group),
-    NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
-    NavItem(Screen.Firma,       "Firma",      Icons.Filled.Domain),
-    NavItem(Screen.Ofertare,    "Ofertare",   Icons.Filled.Description),
-)
-
-private val angajatItems = listOf(
-    NavItem(Screen.Home,        "Acasa",      Icons.Filled.Home),
-    NavItem(Screen.Leaderboard, "Topuri",     Icons.Filled.EmojiEvents),
+private val navigationItems = listOf(
+    NavItem(Screen.Home,        "Acasă",        Icons.Filled.Home, AppPermission.DASHBOARD_VIEW),
+    NavItem(Screen.Proiecte,    "Proiecte",     Icons.Filled.Business, AppPermission.PROJECTS_VIEW),
+    NavItem(Screen.Santier,     "Șantier",      Icons.Filled.Construction, AppPermission.SITE_VIEW),
+    NavItem(Screen.Angajati,    "Echipă",       Icons.Filled.Group, AppPermission.TEAM_VIEW),
+    NavItem(Screen.Leaderboard, "Performanță",  Icons.Filled.EmojiEvents, AppPermission.PERFORMANCE_VIEW),
+    NavItem(Screen.Resurse,     "Resurse",      Icons.Filled.Inventory2, AppPermission.RESOURCES_VIEW),
+    NavItem(Screen.Ofertare,    "Ofertare",     Icons.Filled.Description, AppPermission.OFFERS_VIEW),
+    NavItem(Screen.Firma,       "Administrare", Icons.Filled.Domain, AppPermission.ADMINISTRATION_VIEW),
 )
 
 // Ecrane de editare/adaugare: la navigare in afara lor (din meniu) intrebam intai
@@ -84,11 +82,9 @@ private fun DrawerContent(
     onItemClick: () -> Unit = {},
     onCloseDrawer: () -> Unit = {}
 ) {
-    val user  = MockSession.currentUser
-    val items = when (user?.role) {
-        UserRole.ANGAJAT -> angajatItems
-        else             -> adminItems
-    }
+    val session = LocalSessionState.current
+    val user = session.user
+    val items = navigationItems.filter { session.hasPermission(it.permission) }
     val sessionViewModel: SessionViewModel = hiltViewModel()
     var pendingNav by remember { mutableStateOf<(() -> Unit)?>(null) }
 
@@ -130,6 +126,15 @@ private fun DrawerContent(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             items.forEach { item ->
+                if (item.screen == Screen.Firma) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "ADMINISTRARE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
                 val selected = currentRoute == item.screen.route
                 NavigationDrawerItem(
                     icon = {
@@ -175,6 +180,37 @@ private fun DrawerContent(
                     )
                 )
             }
+        }
+
+        if (session.hasPermission(AppPermission.SETTINGS_VIEW)) {
+            NavigationDrawerItem(
+                icon = { Icon(Icons.Filled.Settings, contentDescription = "Setări") },
+                label = { Text("Setări") },
+                selected = currentRoute == Screen.Settings.route,
+                onClick = {
+                    if (currentRoute != Screen.Settings.route) {
+                        val doNavigate = {
+                            onItemClick()
+                            navController.navigate(Screen.Settings.route) {
+                                popUpTo(Screen.Home.route)
+                                launchSingleTop = true
+                            }
+                        }
+                        if (currentRoute in editRoutes && !NavEditGuard.skipConfirm) {
+                            pendingNav = doNavigate
+                        } else {
+                            doNavigate()
+                        }
+                    }
+                },
+                modifier = Modifier.padding(horizontal = 12.dp),
+                colors = NavigationDrawerItemDefaults.colors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
         // ---- Footer: user info ----
@@ -225,10 +261,12 @@ private fun DrawerContent(
                         )
                         Text(
                             text = when (user.role) {
-                                UserRole.ADMIN           -> "Administrator"
-                                UserRole.PROJECT_MANAGER -> "Inginer"
-                                UserRole.ANGAJAT         -> "Angajat"
-                                UserRole.CLIENT          -> "Client"
+                                UserRole.ADMIN      -> "Administrator"
+                                UserRole.MANAGER    -> "Manager"
+                                UserRole.INGINER    -> "Inginer"
+                                UserRole.SEF_ECHIPA -> "Sef de echipa"
+                                UserRole.ANGAJAT    -> "Angajat"
+                                UserRole.CLIENT     -> "Client"
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -247,19 +285,6 @@ private fun DrawerContent(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false }
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("Setari") },
-                        leadingIcon = {
-                            Icon(Icons.Filled.Settings, contentDescription = null)
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            onCloseDrawer()
-                            navController.navigate(Screen.Settings.route) {
-                                launchSingleTop = true
-                            }
-                        }
-                    )
                     DropdownMenuItem(
                         text = { Text("Deconectare") },
                         leadingIcon = {
@@ -341,6 +366,7 @@ fun AppNavigationDrawer(
     } else {
         // Telefon: drawer modal (slide din stanga)
         val drawerState = rememberDrawerState(DrawerValue.Closed)
+        val drawerScope = rememberCoroutineScope()
 
         ModalNavigationDrawer(
             drawerState = drawerState,
@@ -352,15 +378,24 @@ fun AppNavigationDrawer(
                         navController = navController,
                         currentRoute  = currentRoute,
                         onItemClick   = {
-                            // Inchide drawer-ul dupa navigare
-                        }
+                            drawerScope.launch { drawerState.close() }
+                        },
+                        onCloseDrawer = {
+                            drawerScope.launch { drawerState.close() }
+                        },
                     )
                 }
             }
         ) {
             // statusBarsPadding o singura data, la nivel de wrapper
             Box(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-                content()
+                CompositionLocalProvider(
+                    LocalOpenDrawer provides {
+                        drawerScope.launch { drawerState.open() }
+                    }
+                ) {
+                    content()
+                }
             }
         }
     }

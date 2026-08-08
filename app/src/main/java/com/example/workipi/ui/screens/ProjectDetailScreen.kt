@@ -80,8 +80,10 @@ import com.example.workipi.ui.theme.PADDING
 import com.example.workipi.ui.theme.PROGRESS_BAR_HEIGHT
 import com.example.workipi.ui.theme.SCREEN_PADDING
 import com.example.workipi.data.model.Lucrare
+import com.example.workipi.data.model.AppPermission
 import com.example.workipi.navigation.Screen
 import com.example.workipi.ui.components.ConfirmDialog
+import com.example.workipi.ui.session.LocalSessionState
 import com.example.workipi.ui.components.TimeNavLineChart
 import com.example.workipi.ui.theme.generalUiComponents.InformationCard
 import com.example.workipi.viewmodel.ChartSeries
@@ -106,6 +108,13 @@ import kotlin.math.roundToInt
 
 private enum class DetailDialog { MIX, TEAM, PONTARE, ZONE }
 
+private enum class ProjectWorkspaceTab(val label: String) {
+    SUMAR("Sumar"), LUCRARI("Lucrări"), ZONE("Zone și subzone"), ECHIPA("Echipă"),
+    PREZENTA("Prezență"), PONTARI("Pontări"), CALITATE("Calitate"), MATERIALE("Materiale"),
+    UNELTE("Unelte"), COSTURI("Costuri"), DOCUMENTE("Documente"), CLASAMENT("Clasament"),
+    ISTORIC("Istoric"), RAPORT_PDF("Raport PDF"),
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ProjectDetailScreen(
@@ -118,46 +127,74 @@ fun ProjectDetailScreen(
     // Reincarca la revenirea pe ecran (ex. dupa ce am asignat angajati noi echipei).
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.load(projectId) }
 
-    val pagerState = rememberPagerState(pageCount = { 2 })
-    val scope = rememberCoroutineScope()
+    var selectedTab by remember { mutableStateOf(ProjectWorkspaceTab.SUMAR) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        VerticalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-            userScrollEnabled = true,
-        ) { page ->
-            when (page) {
-                0 -> DetailPage(
-                    state = state,
-                    projectId = projectId,
-                    viewModel = viewModel,
-                    onReload = { viewModel.load(projectId) },
-                    onGoNext = { scope.launch { pagerState.animateScrollToPage(1) } },
-                    onAssignTeam = { navController.navigate(Screen.AssignEmployees.createRoute(projectId)) },
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 8.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = state.name.ifBlank { "Workspace proiect" },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                 )
-                else -> ReportsPage(
-                    pontari = state.pontari,
-                    onGoBack = { scope.launch { pagerState.animateScrollToPage(0) } },
+                if (state.address.isNotBlank()) {
+                    Text(
+                        text = state.address,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Filled.Close, contentDescription = "Înapoi la proiecte")
+            }
+        }
+
+        ScrollableTabRow(selectedTabIndex = selectedTab.ordinal, edgePadding = 12.dp, divider = {}) {
+            ProjectWorkspaceTab.entries.forEach { tab ->
+                Tab(
+                    selected = selectedTab == tab,
+                    onClick = { selectedTab = tab },
+                    text = { Text(tab.label, maxLines = 1) },
                 )
             }
         }
 
-        // Buton de inchidere (X) — inapoi la lista de proiecte.
-        IconButton(
-            onClick = { navController.popBackStack() },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(8.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "Inapoi la proiecte",
-                tint = MaterialTheme.colorScheme.onBackground,
-            )
+        Box(modifier = Modifier.weight(1f)) {
+            when (selectedTab) {
+                ProjectWorkspaceTab.SUMAR -> DetailPage(
+                    state = state,
+                    projectId = projectId,
+                    viewModel = viewModel,
+                    onReload = { viewModel.load(projectId) },
+                    onGoNext = { selectedTab = ProjectWorkspaceTab.PONTARI },
+                    onAssignTeam = { navController.navigate(Screen.AssignEmployees.createRoute(projectId)) },
+                )
+                ProjectWorkspaceTab.LUCRARI -> ProjectWorksPage(state)
+                ProjectWorkspaceTab.ZONE -> ProjectZonesPage(state)
+                ProjectWorkspaceTab.ECHIPA -> ProjectTeamPage(
+                    state = state,
+                    onAssignTeam = { navController.navigate(Screen.AssignEmployees.createRoute(projectId)) },
+                )
+                ProjectWorkspaceTab.PONTARI,
+                ProjectWorkspaceTab.ISTORIC -> ReportsPage(
+                    pontari = state.pontari,
+                    onGoBack = { selectedTab = ProjectWorkspaceTab.SUMAR },
+                )
+                ProjectWorkspaceTab.COSTURI -> ProjectCostsPage(state)
+                ProjectWorkspaceTab.PREZENTA -> WorkspacePlaceholderPage("Prezență", "Check-in-ul zilnic și prezența echipei vor fi centralizate aici.")
+                ProjectWorkspaceTab.CALITATE -> WorkspacePlaceholderPage("Calitate", "Reviziile, corecturile și verificările proiectului vor fi urmărite aici.")
+                ProjectWorkspaceTab.MATERIALE -> WorkspacePlaceholderPage("Materiale", "Necesarul, consumul, stocul și costurile materialelor proiectului.")
+                ProjectWorkspaceTab.UNELTE -> WorkspacePlaceholderPage("Unelte și echipamente", "Uneltele alocate, responsabilul, starea și istoricul predărilor.")
+                ProjectWorkspaceTab.DOCUMENTE -> WorkspacePlaceholderPage("Documente", "Contracte, planuri, procese-verbale, fotografii și alte fișiere.")
+                ProjectWorkspaceTab.CLASAMENT -> WorkspacePlaceholderPage("Clasament proiect", "Performanța echipei calculată pentru acest proiect.")
+                ProjectWorkspaceTab.RAPORT_PDF -> WorkspacePlaceholderPage("Raport PDF", "Raportul complet va reuni datele din toate modulele proiectului.")
+            }
         }
+
     }
 }
 
@@ -203,6 +240,108 @@ private fun DetailPage(
                 Icon(Icons.Filled.ExpandMore, contentDescription = "Vezi raportarile recente")
             }
         }
+    }
+}
+
+@Composable
+private fun ProjectWorksPage(state: ProjectDetailScreenUi) {
+    WorkspaceListPage(title = "Lucrări", subtitle = "Lucrările planificate pe zone și cantitățile lor") {
+        if (state.lucrariEntries.isEmpty()) {
+            EmptyHint("Nicio lucrare alocată proiectului.")
+        } else {
+            state.lucrariEntries.forEach { item ->
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column {
+                            Text(item.lucrareName, fontWeight = FontWeight.SemiBold)
+                            Text(item.zoneName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text("${item.quantity.roundToInt()} ${item.unit}", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectZonesPage(state: ProjectDetailScreenUi) {
+    WorkspaceListPage(title = "Zone și subzone", subtitle = "Progresul fizic al fiecărei zone") {
+        if (state.zoneItems.isEmpty()) {
+            EmptyHint("Nicio zonă configurată.")
+        } else {
+            state.zoneItems.forEach { zone ->
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(zone.name, fontWeight = FontWeight.SemiBold)
+                            Text("${zone.percent}%", color = MaterialTheme.colorScheme.primary)
+                        }
+                        LinearProgressIndicator(progress = { zone.percent / 100f }, modifier = Modifier.fillMaxWidth())
+                        Text(
+                            "${zone.completedQuantity.roundToInt()} / ${zone.totalQuantity.roundToInt()} mp",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectTeamPage(state: ProjectDetailScreenUi, onAssignTeam: () -> Unit) {
+    WorkspaceListPage(title = "Echipă", subtitle = "Membrii alocați proiectului") {
+        Button(onClick = onAssignTeam) { Text("Gestionează echipa") }
+        if (state.team.isEmpty()) EmptyHint("Niciun membru alocat.") else TeamTable(state.team)
+    }
+}
+
+@Composable
+private fun ProjectCostsPage(state: ProjectDetailScreenUi) {
+    if (!LocalSessionState.current.hasPermission(AppPermission.FINANCIALS_VIEW)) {
+        WorkspacePlaceholderPage("Costuri", "Nu ai permisiunea de a vedea informațiile financiare ale proiectului.")
+        return
+    }
+    WorkspaceListPage(title = "Costuri", subtitle = "Situația financiară curentă a proiectului") {
+        Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING.dp)) {
+            InformationCard(Modifier.weight(1f), "Buget ofertat", "${state.budget.roundToInt()} RON")
+            InformationCard(Modifier.weight(1f), "Costuri proiect", "${state.projectCosts.roundToInt()} RON")
+            InformationCard(Modifier.weight(1f), "Profit anticipat", "${state.possibleGains.roundToInt()} RON")
+        }
+    }
+}
+
+@Composable
+private fun WorkspacePlaceholderPage(title: String, description: String) {
+    WorkspaceListPage(title = title, subtitle = description) {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Text(
+                "Structura modulului este pregătită în workspace. Datele și fluxurile dedicate vor fi conectate în etapa următoare.",
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceListPage(
+    title: String,
+    subtitle: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(SCREEN_PADDING.dp),
+        verticalArrangement = Arrangement.spacedBy(CARD_SPACING.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        content()
     }
 }
 

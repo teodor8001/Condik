@@ -3,7 +3,7 @@ package com.example.workipi.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.workipi.data.mock.MockSession
+import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.LucrareInsert
 import com.example.workipi.repository.SkillRepository
@@ -25,6 +25,7 @@ data class PreturiUiState(
 @HiltViewModel
 class PreturiViewModel @Inject constructor(
     private val skillRepository: SkillRepository,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PreturiUiState())
@@ -35,7 +36,7 @@ class PreturiViewModel @Inject constructor(
     }
 
     fun loadSkills() {
-        val companyId = MockSession.currentUser?.idCompany
+        val companyId = sessionStore.state.value.user?.companyId
         if (companyId == null) {
             _uiState.update { it.copy(errorMessage = "Nu am putut identifica firma. Reautentifica-te.") }
             return
@@ -59,7 +60,7 @@ class PreturiViewModel @Inject constructor(
     }
 
     fun createSkill(name: String, unit: String, price: Float, points: Long) {
-        val companyId = MockSession.currentUser?.idCompany ?: return
+        val companyId = sessionStore.state.value.user?.companyId ?: return
         _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
             skillRepository.createSkill(
