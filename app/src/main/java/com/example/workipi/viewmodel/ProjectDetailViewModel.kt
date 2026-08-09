@@ -8,18 +8,24 @@ import com.example.workipi.session.SessionStore
 import com.example.workipi.data.model.History
 import com.example.workipi.data.model.Lucrare
 import com.example.workipi.data.model.LucrareInsert
+import com.example.workipi.data.model.Material
+import com.example.workipi.data.model.MaterialInsert
 import com.example.workipi.data.model.Project
 import com.example.workipi.data.model.ProjectStatus
 import com.example.workipi.data.model.User
+import com.example.workipi.data.model.Unealta
 import com.example.workipi.data.model.Zone
 import com.example.workipi.data.model.ZoneHistory
 import com.example.workipi.data.model.ZoneHistoryInsert
 import com.example.workipi.data.model.ZoneInsert
 import com.example.workipi.repository.HistoryRepository
+import com.example.workipi.repository.MaterialRepository
 import com.example.workipi.repository.ProjectRepository
 import com.example.workipi.repository.SkillRepository
+import com.example.workipi.repository.SiteOperationsRepository
 import com.example.workipi.repository.UserProjectRepository
 import com.example.workipi.repository.UserRepository
+import com.example.workipi.repository.UneltaRepository
 import com.example.workipi.repository.ZoneHistoryRepository
 import com.example.workipi.repository.ZoneRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +39,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.daysUntil
+import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import javax.inject.Inject
@@ -47,6 +54,13 @@ data class ProjectDetailScreenUi(
     val estimatedEndDate: String = "",
     val finishedQuantity: Double = 0.0,
     val totalQuantity: Double = 0.0,
+    val projectPace: Double = 0.0,
+    val companyCompletedProjectsPace: Double = 0.0,
+    val presentOnSiteCount: Int = 0,
+    val materialCosts: Double = 0.0,
+    val materials: List<Material> = emptyList(),
+    val tools: List<Unealta> = emptyList(),
+    val toolsUnavailable: Boolean = false,
     val pontariCount: Int = 0,
     val risks: Long = 0,
     val possibleGains: Double = 0.0,
@@ -80,6 +94,8 @@ data class ChartSeries(
 data class MixLucrareItem(
     val name: String,
     val totalQuantity: Double,
+    val completedQuantity: Double,
+    val pacePerDay: Double,
     val unit: String,
 )
 
@@ -87,8 +103,10 @@ data class MixLucrareItem(
 data class TeamMemberItem(
     val userId: Long,
     val name: String,
+    val role: String,
     val salary: Double,
     val mpPerDay: Double,
+    val isPresent: Boolean,
 )
 
 /** O zona a proiectului + cat e finalizat din ea. */
@@ -113,6 +131,7 @@ data class LucrareEntryItem(
     val lucrareId: Long,
     val lucrareName: String,
     val quantity: Double,
+    val completedQuantity: Double,
     val unit: String,
 )
 
@@ -134,6 +153,9 @@ class ProjectDetailViewModel @Inject constructor(
     private val projectRepository: ProjectRepository,
     private val zoneRepository: ZoneRepository,
     private val historyRepository: HistoryRepository,
+    private val materialRepository: MaterialRepository,
+    private val uneltaRepository: UneltaRepository,
+    private val siteOperationsRepository: SiteOperationsRepository,
     private val zoneHistoryRepository: ZoneHistoryRepository,
     private val skillRepository: SkillRepository,
     private val userProjectRepository: UserProjectRepository,
@@ -175,8 +197,30 @@ class ProjectDetailViewModel @Inject constructor(
                 val usersById: Map<Long, User> = userRepository.getEmployeesByCompanyId(companyId)
                     .getOrDefault(emptyList())
                     .associateBy { it.idUser }
-                val progressPercent = getProgressPercent(zones)
-                val teamMembers = buildTeam(assignedUserIds, usersById, histories)
+                val materials = materialRepository.getByProject(project.projectId)
+                    .getOrDefault(emptyList())
+                val materialsCost = materials
+                    .sumOf { it.totalCost.toDouble() }
+                val toolsResult = uneltaRepository.getByCompany(companyId)
+                val tools = toolsResult.getOrDefault(emptyList())
+                val attendance = siteOperationsRepository
+                    .getAttendance(project.projectId, operationalAttendanceDate())
+                val presentUserIds = attendance
+                    .filter { it.status.equals("prezent", ignoreCase = true) }
+                    .map { it.userId }
+                    .toSet()
+                val presentCount = presentUserIds.size
+                // O lucrare poate fi adăugată în mai multe zone. Pentru proiect, o agregăm
+                // după lucrare, iar totalul este suma tuturor cantităților planificate.
+                val mixLucrari = buildMixLucrari(zoneHistories, histories, skillsById)
+                val totalWorkSurface = mixLucrari.sumOf { it.totalQuantity }
+                val finishedSurface = getFinishedQuantity(project, zones)
+                val progressPercent = getProgressPercent(finishedSurface, totalWorkSurface)
+                val projectPace = getWorkPace(histories)
+                val companyPace = getCompletedProjectsPace(companyId)
+                val teamMembers = buildTeam(assignedUserIds, usersById, histories, presentUserIds)
+                val salaryCosts = getTeamSalaryCosts(project, teamMembers)
+                val projectCosts = salaryCosts + materialsCost
                 val realZones = zones.filter { !it.isImplicit }
                 currentProjectId = project.projectId
                 implicitZoneId = zones.firstOrNull { it.isImplicit }?.id
@@ -188,16 +232,23 @@ class ProjectDetailViewModel @Inject constructor(
                         progressPercent = progressPercent,
                         endDate = project.endDate.formatRoLong(),
                         estimatedEndDate = getEstimatedEndDate(project, zones),
-                        finishedQuantity = getFinishedQuantity(project, zones),
-                        totalQuantity = zones.sumOf { zone -> zone.surface.toDouble() },
+                        finishedQuantity = finishedSurface,
+                        totalQuantity = totalWorkSurface,
+                        projectPace = projectPace,
+                        companyCompletedProjectsPace = companyPace,
+                        presentOnSiteCount = presentCount,
                         pontariCount = histories.size,
                         risks = 0,
-                        possibleGains = getPossibleGains(project),
+                        possibleGains = ((project.budget ?: 0f).toDouble() - projectCosts),
                         budget = (project.budget)?.toDouble() ?: 0.0,
-                        projectCosts = getProjectCosts(project),
+                        projectCosts = projectCosts,
+                        materialCosts = materialsCost,
+                        materials = materials.sortedBy { it.name.lowercase() },
+                        tools = tools.sortedBy { it.name.lowercase() },
+                        toolsUnavailable = toolsResult.isFailure,
                         graphPoints = getPointsForAverageWorkGraphic(histories),
                         graphSeries = buildGraphSeries(histories, skillsById),
-                        mixLucrari = buildMixLucrari(zoneHistories, skillsById),
+                        mixLucrari = mixLucrari,
                         lucrariEntries = buildLucrariEntries(zoneHistories, skillsById, zones),
                         team = teamMembers,
                         teamSalaryTotal = teamMembers.sumOf { it.salary },
@@ -223,6 +274,23 @@ class ProjectDetailViewModel @Inject constructor(
             zoneRepository.createZone(
                 ZoneInsert(projectId = pid, name = name.trim(), surface = 0f, isImplicit = false)
             ).onFailure { Log.e(TAG, "Adaugare zona esuata", it) }
+            load(pid)
+        }
+    }
+
+    fun addMaterial(name: String, quantity: Float, unit: String, unitCost: Float) {
+        val pid = currentProjectId ?: return
+        if (name.isBlank() || quantity <= 0f || unitCost < 0f) return
+        viewModelScope.launch {
+            materialRepository.add(
+                MaterialInsert(
+                    projectId = pid,
+                    name = name.trim(),
+                    quantity = quantity,
+                    unit = unit.trim().ifBlank { "buc" },
+                    unitCost = unitCost,
+                )
+            ).onFailure { Log.e(TAG, "Adăugare material eșuată", it) }
             load(pid)
         }
     }
@@ -334,12 +402,13 @@ class ProjectDetailViewModel @Inject constructor(
         val zoneNameById = zones.associate { it.id to (it.name ?: "Zona") }
         return zoneHistories.map { zh ->
             val skill = skillsById[zh.lucrareId]
-            LucrareEntryItem(
+                LucrareEntryItem(
                 zoneId = zh.zoneId,
                 zoneName = zoneNameById[zh.zoneId] ?: "Zona",
                 lucrareId = zh.lucrareId,
                 lucrareName = skill?.name ?: "Lucrare",
                 quantity = zh.totalQuantity.toDouble(),
+                completedQuantity = zh.completedQuantity.toDouble(),
                 unit = skill?.unit ?: "mp",
             )
         }.sortedByDescending { it.quantity }
@@ -382,15 +451,20 @@ class ProjectDetailViewModel @Inject constructor(
     /** Grupeaza zone_lucrari pe lucrare si insumeaza suprafata totala alocata fiecareia. */
     private fun buildMixLucrari(
         zoneHistories: List<ZoneHistory>,
+        histories: List<History>,
         skillsById: Map<Long, Lucrare>,
     ): List<MixLucrareItem> =
         zoneHistories
             .groupBy { it.lucrareId }
             .map { (lucrareId, rows) ->
                 val skill = skillsById[lucrareId]
+                val workHistory = histories.filter { it.idLucrare == lucrareId }
+                val workedDays = workHistory.mapNotNull { it.workDate }.distinct().size
                 MixLucrareItem(
                     name = skill?.name ?: "Lucrare #$lucrareId",
                     totalQuantity = rows.sumOf { it.totalQuantity.toDouble() },
+                    completedQuantity = rows.sumOf { it.completedQuantity.toDouble() },
+                    pacePerDay = if (workedDays > 0) workHistory.sumOf { it.quantity.toDouble() } / workedDays else 0.0,
                     unit = skill?.unit ?: "mp",
                 )
             }
@@ -401,12 +475,15 @@ class ProjectDetailViewModel @Inject constructor(
         assignedUserIds: List<Long>,
         usersById: Map<Long, User>,
         histories: List<History>,
+        presentUserIds: Set<Long>,
     ): List<TeamMemberItem> {
         val historiesByUser = histories.groupBy { it.userId }
         return assignedUserIds.mapNotNull { userId ->
             val user = usersById[userId]
-            // Echipa = doar angajati si ingineri, fara admini.
-            if (user?.role?.equals("admin", ignoreCase = true) == true) return@mapNotNull null
+            // Echipa de șantier exclude conturile administrative și clienții atașați proiectului.
+            if (user?.role?.equals("admin", ignoreCase = true) == true ||
+                user?.role?.equals("client", ignoreCase = true) == true
+            ) return@mapNotNull null
             val userHistories = historiesByUser[userId].orEmpty()
             val workedDays = userHistories.mapNotNull { it.workDate }.distinct().size
             val totalQuantity = userHistories.sumOf { it.quantity.toDouble() }
@@ -414,10 +491,22 @@ class ProjectDetailViewModel @Inject constructor(
             TeamMemberItem(
                 userId = userId,
                 name = user?.fullName ?: "Utilizator #$userId",
+                role = user.projectRoleLabel(),
                 salary = user?.salary ?: 0.0,
                 mpPerDay = mpPerDay,
+                isPresent = userId in presentUserIds,
             )
         }.sortedByDescending { it.mpPerDay }
+    }
+
+    private fun User?.projectRoleLabel(): String = when (this?.role?.lowercase()) {
+        "manager" -> "Manager proiect"
+        "inginer" -> "Inginer"
+        "sef_echipa" -> "Șef echipă"
+        "angajat" -> "Angajat"
+        "client" -> "Client"
+        "admin" -> "Administrator"
+        else -> "Angajat"
     }
 
     private fun computeStatus(project: Project, progressPercent: Int): ProjectStatus {
@@ -498,6 +587,32 @@ class ProjectDetailViewModel @Inject constructor(
 
     }
 
+    private fun getProgressPercent(finished: Double, total: Double): Int =
+        if (total > 0.0) ((finished / total) * 100).toInt().coerceIn(0, 100) else 0
+
+    /** Ritmul este calculat din zilele în care s-au raportat efectiv pontări. */
+    private fun getWorkPace(histories: List<History>): Double {
+        val workedDays = histories.mapNotNull { it.workDate }.distinct().size
+        return if (workedDays > 0) histories.sumOf { it.quantity.toDouble() } / workedDays else 0.0
+    }
+
+    /**
+     * Baza nu are încă un câmp explicit de „finalizat”; folosim proiectele al căror termen a trecut.
+     * Media este a ritmului zilnic din pontările fiecărui proiect eligibil.
+     */
+    private suspend fun getCompletedProjectsPace(companyId: Long): Double {
+        val today = Clock.System.now().toLocalDateTime(timeZone).date
+        val completed = projectRepository.getProjectsByCompanyId(companyId)
+            .filter { it.endDate < today }
+        if (completed.isEmpty()) return 0.0
+        val paces = completed.mapNotNull { completedProject ->
+            val zones = zoneRepository.getZonesForProject(completedProject.projectId).getOrDefault(emptyList())
+            val histories = historyRepository.getByZones(zones.map { it.id }).getOrDefault(emptyList())
+            getWorkPace(histories).takeIf { it > 0.0 }
+        }
+        return if (paces.isEmpty()) 0.0 else paces.average()
+    }
+
     // in the future we might need to refactor this method, by predicting the gains
     private fun getPossibleGains(project: Project): Double {
         val budget = project.budget ?: 0f
@@ -513,6 +628,18 @@ class ProjectDetailViewModel @Inject constructor(
         val costs = getTotalProjectDays(project) * salaryPerDay
 
         return costs.toDouble()
+    }
+
+    private fun getTeamSalaryCosts(project: Project, team: List<TeamMemberItem>): Double {
+        val monthlyTeamSalary = team.sumOf { it.salary }
+        val dailySalary = if (monthlyTeamSalary > 0.0) monthlyTeamSalary / 30.0 else project.totalSalaryPerMonth / 30.0
+        return getTotalProjectDays(project).coerceAtLeast(0) * dailySalary
+    }
+
+    /** După 03:00 începe o nouă zi operațională; înainte, prezența aparține încă zilei anterioare. */
+    private fun operationalAttendanceDate(): LocalDate {
+        val now = Clock.System.now().toLocalDateTime(timeZone)
+        return if (now.hour < 3) now.date.minus(1, DateTimeUnit.DAY) else now.date
     }
 
     fun getPointsForAverageWorkGraphic(histories: List<History>): List<AverageWorkGraphic> {

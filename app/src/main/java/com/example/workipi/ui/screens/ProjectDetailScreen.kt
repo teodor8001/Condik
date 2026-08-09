@@ -3,16 +3,19 @@ package com.example.workipi.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,7 +57,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -80,6 +85,8 @@ import com.example.workipi.ui.theme.PADDING
 import com.example.workipi.ui.theme.PROGRESS_BAR_HEIGHT
 import com.example.workipi.ui.theme.SCREEN_PADDING
 import com.example.workipi.data.model.Lucrare
+import com.example.workipi.data.model.Material
+import com.example.workipi.data.model.Unealta
 import com.example.workipi.data.model.AppPermission
 import com.example.workipi.navigation.Screen
 import com.example.workipi.ui.components.ConfirmDialog
@@ -106,14 +113,15 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private enum class DetailDialog { MIX, TEAM, PONTARE, ZONE }
-
-private enum class ProjectWorkspaceTab(val label: String) {
-    SUMAR("Sumar"), LUCRARI("Lucrări"), ZONE("Zone și subzone"), ECHIPA("Echipă"),
-    PREZENTA("Prezență"), PONTARI("Pontări"), CALITATE("Calitate"), MATERIALE("Materiale"),
-    UNELTE("Unelte"), COSTURI("Costuri"), DOCUMENTE("Documente"), CLASAMENT("Clasament"),
-    ISTORIC("Istoric"), RAPORT_PDF("Raport PDF"),
+private enum class DetailDialog { PONTARE, PONTARI_LIST, ZONE }
+private enum class ProjectDetailTab(val label: String) {
+    SUMAR("Sumar"),
+    LUCRARI("Lucrări"),
+    ECHIPA("Echipă și activitate"),
+    RESURSE("Resurse și costuri"),
 }
+private enum class WorksDialog { ADD_ZONE, ADD_WORK }
+private enum class ResourcesDialog { ADD_MATERIAL }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -127,11 +135,9 @@ fun ProjectDetailScreen(
     // Reincarca la revenirea pe ecran (ex. dupa ce am asignat angajati noi echipei).
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.load(projectId) }
 
-    var selectedTab by remember { mutableStateOf(ProjectWorkspaceTab.SUMAR) }
-
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 8.dp, end = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 12.dp, end = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -153,45 +159,74 @@ fun ProjectDetailScreen(
             }
         }
 
-        ScrollableTabRow(selectedTabIndex = selectedTab.ordinal, edgePadding = 12.dp, divider = {}) {
-            ProjectWorkspaceTab.entries.forEach { tab ->
-                Tab(
-                    selected = selectedTab == tab,
-                    onClick = { selectedTab = tab },
-                    text = { Text(tab.label, maxLines = 1) },
-                )
-            }
-        }
+        DetailPage(
+            modifier = Modifier.weight(1f),
+            state = state,
+            projectId = projectId,
+            viewModel = viewModel,
+            onReload = { viewModel.load(projectId) },
+            onAssignTeam = { navController.navigate(Screen.AssignEmployees.createRoute(projectId)) },
+        )
 
-        Box(modifier = Modifier.weight(1f)) {
-            when (selectedTab) {
-                ProjectWorkspaceTab.SUMAR -> DetailPage(
-                    state = state,
-                    projectId = projectId,
-                    viewModel = viewModel,
-                    onReload = { viewModel.load(projectId) },
-                    onGoNext = { selectedTab = ProjectWorkspaceTab.PONTARI },
-                    onAssignTeam = { navController.navigate(Screen.AssignEmployees.createRoute(projectId)) },
-                )
-                ProjectWorkspaceTab.LUCRARI -> ProjectWorksPage(state)
-                ProjectWorkspaceTab.ZONE -> ProjectZonesPage(state)
-                ProjectWorkspaceTab.ECHIPA -> ProjectTeamPage(
-                    state = state,
-                    onAssignTeam = { navController.navigate(Screen.AssignEmployees.createRoute(projectId)) },
-                )
-                ProjectWorkspaceTab.PONTARI,
-                ProjectWorkspaceTab.ISTORIC -> ReportsPage(
-                    pontari = state.pontari,
-                    onGoBack = { selectedTab = ProjectWorkspaceTab.SUMAR },
-                )
-                ProjectWorkspaceTab.COSTURI -> ProjectCostsPage(state)
-                ProjectWorkspaceTab.PREZENTA -> WorkspacePlaceholderPage("Prezență", "Check-in-ul zilnic și prezența echipei vor fi centralizate aici.")
-                ProjectWorkspaceTab.CALITATE -> WorkspacePlaceholderPage("Calitate", "Reviziile, corecturile și verificările proiectului vor fi urmărite aici.")
-                ProjectWorkspaceTab.MATERIALE -> WorkspacePlaceholderPage("Materiale", "Necesarul, consumul, stocul și costurile materialelor proiectului.")
-                ProjectWorkspaceTab.UNELTE -> WorkspacePlaceholderPage("Unelte și echipamente", "Uneltele alocate, responsabilul, starea și istoricul predărilor.")
-                ProjectWorkspaceTab.DOCUMENTE -> WorkspacePlaceholderPage("Documente", "Contracte, planuri, procese-verbale, fotografii și alte fișiere.")
-                ProjectWorkspaceTab.CLASAMENT -> WorkspacePlaceholderPage("Clasament proiect", "Performanța echipei calculată pentru acest proiect.")
-                ProjectWorkspaceTab.RAPORT_PDF -> WorkspacePlaceholderPage("Raport PDF", "Raportul complet va reuni datele din toate modulele proiectului.")
+    }
+}
+
+@Composable
+private fun DetailPage(
+    modifier: Modifier = Modifier,
+    state: ProjectDetailScreenUi,
+    projectId: Long,
+    viewModel: ProjectDetailViewModel,
+    onReload: () -> Unit,
+    onAssignTeam: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val pagerState = rememberPagerState(initialPage = 0) { ProjectDetailTab.entries.size }
+
+    Column(
+        modifier = Modifier
+            .then(modifier)
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(SCREEN_PADDING.dp),
+        verticalArrangement = Arrangement.spacedBy(CARD_SPACING.dp),
+    ) {
+        val error = state.error
+        if (error != null) {
+            Text(text = error, color = MaterialTheme.colorScheme.error)
+        } else {
+            ProjectDetailTabs(
+                selected = ProjectDetailTab.entries[pagerState.currentPage],
+                onSelect = { tab ->
+                    scope.launch {
+                        pagerState.animateScrollToPage(tab.ordinal)
+                    }
+                },
+            )
+            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f).fillMaxWidth()) { page ->
+                when (ProjectDetailTab.entries[page]) {
+                    ProjectDetailTab.SUMAR -> Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(CARD_SPACING.dp),
+                    ) {
+                        DetailPanel(state, projectId, viewModel, onReload, onAssignTeam)
+                    }
+                    ProjectDetailTab.LUCRARI -> Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    ) {
+                        WorksDetailPage(state, viewModel)
+                    }
+                    ProjectDetailTab.ECHIPA -> Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    ) {
+                        TeamActivityPage(state = state, onEditTeam = onAssignTeam)
+                    }
+                    ProjectDetailTab.RESURSE -> Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    ) {
+                        ResourcesCostsPage(state = state, viewModel = viewModel)
+                    }
+                }
             }
         }
 
@@ -199,47 +234,623 @@ fun ProjectDetailScreen(
 }
 
 @Composable
-private fun DetailPage(
-    state: ProjectDetailScreenUi,
-    projectId: Long,
-    viewModel: ProjectDetailViewModel,
-    onReload: () -> Unit,
-    onGoNext: () -> Unit,
-    onAssignTeam: () -> Unit,
+private fun ProjectDetailTabs(
+    selected: ProjectDetailTab,
+    onSelect: (ProjectDetailTab) -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(SCREEN_PADDING.dp),
-        verticalArrangement = Arrangement.spacedBy(CARD_SPACING.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            text = "Detalii proiect",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-
-        val error = state.error
-        if (error != null) {
-            Text(text = error, color = MaterialTheme.colorScheme.error)
-        } else {
-            DetailPanel(
-                state = state,
-                projectId = projectId,
-                viewModel = viewModel,
-                onReload = onReload,
-                onAssignTeam = onAssignTeam,
-            )
+        ProjectDetailTab.entries.forEach { tab ->
+            val active = tab == selected
+            TextButton(
+                onClick = { onSelect(tab) },
+                shape = RoundedCornerShape(11.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    containerColor = if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                    contentColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            ) { Text(tab.label, fontWeight = FontWeight.Bold) }
         }
+    }
+}
 
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            FilledTonalIconButton(onClick = onGoNext) {
-                Icon(Icons.Filled.ExpandMore, contentDescription = "Vezi raportarile recente")
+@Composable
+private fun ProjectDetailHero(state: ProjectDetailScreenUi) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(state.name.ifBlank { "Proiect" }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(state.address.ifBlank { "Adresă necompletată" }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                StatusBadge(state.status)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                LinearProgressIndicator(
+                    progress = { (state.progressPercent / 100f).coerceIn(0f, 1f) },
+                    modifier = Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(99.dp)),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+                Text("${state.progressPercent}%", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HeroDetail("Termen", state.endDate, Modifier.weight(1f))
+                HeroDetail("Estimare", state.estimatedEndDate, Modifier.weight(1f))
+                HeroDetail("Realizat", "${state.finishedQuantity.roundToInt()} / ${state.totalQuantity.roundToInt()} mp", Modifier.weight(1f))
             }
         }
+    }
+}
+
+@Composable
+private fun HeroDetail(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value.ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun WorksDetailPage(
+    state: ProjectDetailScreenUi,
+    viewModel: ProjectDetailViewModel,
+    modifier: Modifier = Modifier,
+) {
+    var dialog by remember { mutableStateOf<WorksDialog?>(null) }
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Lucrări", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Suprafețe, progres și organizare pe zone.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                WorksMetric(
+                    modifier = Modifier.weight(1f),
+                    label = "Suprafață realizată",
+                    value = "${state.finishedQuantity.roundToInt()} / ${state.totalQuantity.roundToInt()} mp",
+                    helper = "${state.progressPercent}% finalizat",
+                    progress = state.progressPercent / 100f,
+                )
+                val efficiency = if (state.companyCompletedProjectsPace > 0) (state.projectPace / state.companyCompletedProjectsPace * 100).roundToInt() else null
+                WorksMetric(
+                    modifier = Modifier.weight(1f),
+                    label = "Eficiență proiect",
+                    value = efficiency?.let { "$it%" } ?: "—",
+                    helper = if (efficiency != null) "${state.projectPace.roundToInt()} mp/zi față de ${state.companyCompletedProjectsPace.roundToInt()} mp/zi, media firmei" else "Media firmei va apărea după primele proiecte încheiate.",
+                    positive = efficiency?.let { it >= 100 } == true,
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth().heightIn(min = 430.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                WorksListCard(state.mixLucrari, onAddWork = { dialog = WorksDialog.ADD_WORK }, modifier = Modifier.weight(1f).fillMaxHeight())
+                ZonesCard(
+                    zones = state.zoneItems,
+                    entries = state.lucrariEntries,
+                    onAddZone = { dialog = WorksDialog.ADD_ZONE },
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+        }
+    }
+    when (dialog) {
+        WorksDialog.ADD_ZONE -> ZoneFormDialog(
+            title = "Adaugă zonă",
+            initialName = "",
+            initialSurface = null,
+            showSurface = false,
+            onDismiss = { dialog = null },
+            onBack = { dialog = null },
+            onSave = { name, _ -> viewModel.addZone(name); dialog = null },
+        )
+        WorksDialog.ADD_WORK -> LucrareFormDialog(
+            zones = state.zonePickers,
+            skills = state.availableSkills,
+            onDismiss = { dialog = null },
+            onBack = { dialog = null },
+            onAddExisting = { zoneId, workId, quantity -> viewModel.addLucrare(zoneId, workId, quantity); dialog = null },
+            onAddNew = { zoneId, name, unit, price, quantity -> viewModel.addNewLucrare(zoneId, name, unit, price, quantity); dialog = null },
+        )
+        null -> Unit
+    }
+}
+
+@Composable
+private fun WorksMetric(
+    label: String,
+    value: String,
+    helper: String,
+    modifier: Modifier = Modifier,
+    positive: Boolean = false,
+    progress: Float? = null,
+) {
+    Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f))) {
+        Column(modifier = Modifier.fillMaxSize().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = if (positive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface)
+            Text(helper, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            progress?.let {
+                LinearProgressIndicator(progress = { it.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(8.dp).clip(RoundedCornerShape(99.dp)), color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.surfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorksListCard(works: List<MixLucrareItem>, onAddWork: () -> Unit, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f))) {
+        Column(modifier = Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Lista lucrărilor", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Button(onClick = onAddWork, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)) { Text("+ Lucrare") }
+            }
+            Text("Cantitatea totală și progresul fiecărei lucrări.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (works.isEmpty()) EmptyHint("Nu sunt încă lucrări alocate zonelor acestui proiect.")
+            else works.forEach { work -> WorkAggregateRow(work) }
+        }
+    }
+}
+
+@Composable
+private fun WorkAggregateRow(work: MixLucrareItem) {
+    val progress = if (work.totalQuantity > 0) (work.completedQuantity / work.totalQuantity).coerceIn(0.0, 1.0) else 0.0
+    Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(work.name, fontWeight = FontWeight.Bold)
+            Text("${work.completedQuantity.roundToInt()} / ${work.totalQuantity.roundToInt()} ${work.unit}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LinearProgressIndicator(progress = { progress.toFloat() }, modifier = Modifier.weight(1f).height(7.dp).clip(RoundedCornerShape(99.dp)), color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.surface)
+            Text("${(progress * 100).roundToInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${work.pacePerDay.roundToInt()} mp/zi", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun ZonesCard(
+    zones: List<ZoneItem>,
+    entries: List<LucrareEntryItem>,
+    onAddZone: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val worksByZoneId = entries.groupBy { it.zoneId }
+    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f))) {
+        Column(modifier = Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Zone", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Button(onClick = onAddZone, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)) { Text("+ Zonă") }
+            }
+            Text("Lucrările alocate fiecărei zone.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (zones.isEmpty()) EmptyHint("Nu există încă zone. Adaugă prima zonă pentru proiect.")
+            else zones.forEach { zone ->
+                ZoneWorksRow(zone = zone, works = worksByZoneId[zone.id].orEmpty())
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ZoneWorksRow(zone: ZoneItem, works: List<LucrareEntryItem>) {
+    Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(13.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(zone.name, fontWeight = FontWeight.Bold)
+            Text("${works.size} ${if (works.size == 1) "lucrare" else "lucrări"}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (works.isEmpty()) {
+            Text(
+                "Zonă pregătită. Adaugă o lucrare ca să setezi suprafața.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                works.forEach { work ->
+                    val percent = if (work.quantity > 0) (work.completedQuantity / work.quantity * 100).roundToInt().coerceIn(0, 100) else 0
+                    AssistChip(onClick = {}, label = { Text("${work.lucrareName} · ${work.completedQuantity.roundToInt()}/${work.quantity.roundToInt()} ${work.unit} · $percent%", maxLines = 1) }, colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamActivityPage(
+    state: ProjectDetailScreenUi,
+    onEditTeam: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val presentCount = state.team.count { it.isPresent }
+    val absentCount = (state.team.size - presentCount).coerceAtLeast(0)
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Echipă și activitate", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Angajații alocați proiectului și situația operațională a zilei.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 390.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Card(
+                    modifier = Modifier.weight(2.1f).fillMaxHeight(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Echipa proiectului", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "${state.team.size} ${if (state.team.size == 1) "angajat alocat" else "angajați alocați"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            OutlinedButton(onClick = onEditTeam) { Text("Editează echipa") }
+                        }
+                        if (state.team.isEmpty()) {
+                            EmptyHint("Niciun angajat nu este alocat încă proiectului.")
+                        } else {
+                            TeamActivityTable(state.team)
+                        }
+                    }
+                }
+                Card(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text("Activitatea zilei", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Prezența este calculată pentru ziua operațională 03:00–02:59.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TeamActivityStat("Prezenți", "$presentCount/${state.team.size}", Modifier.weight(1f), positive = true)
+                            TeamActivityStat("Pontări", state.pontariCount.toString(), Modifier.weight(1f))
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                        Text("Situație curentă", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        if (state.team.isEmpty()) {
+                            Text("Adaugă angajați în echipă pentru a urmări prezența.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            TeamPresenceSummary("Prezenți", presentCount, MaterialTheme.colorScheme.secondary)
+                            TeamPresenceSummary("Absenți / neconfirmați", absentCount, MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamActivityStat(label: String, value: String, modifier: Modifier = Modifier, positive: Boolean = false) {
+    Column(
+        modifier = modifier.clip(RoundedCornerShape(13.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = if (positive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun TeamPresenceSummary(label: String, count: Int, color: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f)).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(count.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = color)
+    }
+}
+
+@Composable
+private fun TeamActivityTable(team: List<TeamMemberItem>) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f), RoundedCornerShape(14.dp)),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TeamHeaderCell("Nume angajat", Modifier.weight(1.5f))
+            TeamHeaderCell("Rol în proiect", Modifier.weight(1.05f))
+            TeamHeaderCell("Ritm personal", Modifier.weight(0.9f))
+            TeamHeaderCell("Prezență", Modifier.weight(0.85f))
+        }
+        team.forEachIndexed { index, member ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(member.name, modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(member.role, modifier = Modifier.weight(1.05f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${member.mpPerDay.roundToInt()} mp/zi", modifier = Modifier.weight(0.9f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                TeamPresenceBadge(member.isPresent, Modifier.weight(0.85f))
+            }
+            if (index < team.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        }
+    }
+}
+
+@Composable
+private fun TeamPresenceBadge(isPresent: Boolean, modifier: Modifier = Modifier) {
+    val color = if (isPresent) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+    val background = if (isPresent) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    Text(
+        text = if (isPresent) "Prezent" else "Absent",
+        modifier = modifier.widthIn(min = 66.dp).clip(RoundedCornerShape(99.dp)).background(background).padding(horizontal = 9.dp, vertical = 5.dp),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        color = color,
+    )
+}
+
+@Composable
+private fun ResourcesCostsPage(
+    state: ProjectDetailScreenUi,
+    viewModel: ProjectDetailViewModel,
+    modifier: Modifier = Modifier,
+) {
+    var dialog by remember { mutableStateOf<ResourcesDialog?>(null) }
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Resurse și costuri", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Materialele proiectului, inventarul firmei și situația financiară estimată.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 460.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                MaterialsResourceCard(
+                    materials = state.materials,
+                    onAdd = { dialog = ResourcesDialog.ADD_MATERIAL },
+                    modifier = Modifier.weight(1.05f).fillMaxHeight(),
+                )
+                ToolsResourceCard(
+                    tools = state.tools,
+                    unavailable = state.toolsUnavailable,
+                    modifier = Modifier.weight(1.05f).fillMaxHeight(),
+                )
+                ProjectCostsCard(
+                    state = state,
+                    modifier = Modifier.weight(1.1f).fillMaxHeight(),
+                )
+            }
+        }
+    }
+    when (dialog) {
+        ResourcesDialog.ADD_MATERIAL -> MaterialFormDialog(
+            onDismiss = { dialog = null },
+            onSave = { name, quantity, unit, cost ->
+                viewModel.addMaterial(name, quantity, unit, cost)
+                dialog = null
+            },
+        )
+        null -> Unit
+    }
+}
+
+@Composable
+private fun MaterialsResourceCard(materials: List<Material>, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Materiale", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Necesarul salvat pentru proiect.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Button(onClick = onAdd, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)) { Text("+ Material") }
+            }
+            if (materials.isEmpty()) {
+                EmptyHint("Nu există materiale pe proiect. Adaugă primul material.")
+            } else {
+                materials.forEachIndexed { index, material ->
+                    MaterialResourceRow(material)
+                    if (index < materials.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaterialResourceRow(material: Material) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(material.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(material.totalCost.toDouble().asRon(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${material.quantity.roundToInt()} ${material.unit}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${material.unitCost.toDouble().asRon()} / ${material.unit}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ToolsResourceCard(tools: List<Unealta>, unavailable: Boolean, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Unelte", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(if (unavailable) "Modulul de inventar nu este configurat." else "Inventarul disponibil al firmei.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(if (unavailable) "MOCK" else "FIRMĂ", modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 7.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(if (unavailable) "Când adăugăm inventarul, aici vom afișa disponibilitatea lui." else "Alocarea unei unelte pe proiect nu este încă modelată în bază.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (unavailable) {
+                EmptyHint("Tabelul de unelte lipsește din baza de date curentă.")
+            } else if (tools.isEmpty()) {
+                EmptyHint("Nu sunt unelte înregistrate pentru firmă.")
+            } else {
+                tools.forEachIndexed { index, tool ->
+                    ToolResourceRow(tool)
+                    if (index < tools.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolResourceRow(tool: Unealta) {
+    val usedShare = if (tool.totalQuantity > 0) tool.inUse.toFloat() / tool.totalQuantity else 0f
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(tool.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        LinearProgressIndicator(
+            progress = { usedShare },
+            modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(99.dp)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${tool.inUse} în uz / ${tool.totalQuantity}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+            Text("${tool.availableQuantity} disponibile", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ProjectCostsCard(state: ProjectDetailScreenUi, modifier: Modifier = Modifier) {
+    val salaryCost = (state.projectCosts - state.materialCosts).coerceAtLeast(0.0)
+    val budget = state.budget.coerceAtLeast(0.0)
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Costuri proiect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Estimare din salariile echipei și materialele proiectului.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CostMetric("Valoare contract", state.budget.asRon(), Modifier.weight(1f))
+                CostMetric("Cost estimat", state.projectCosts.asRon(), Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CostMetric("Salarii estimate", salaryCost.asRon(), Modifier.weight(1f))
+                CostMetric("Profit estimat", state.possibleGains.asRon(), Modifier.weight(1f), positive = state.possibleGains >= 0)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+            Text("Structura costului estimat", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            CostBar("Salarii", salaryCost, budget)
+            CostBar("Materiale", state.materialCosts, budget)
+            CostBar("Cost total", state.projectCosts, budget)
+            CostBar("Profit estimat", state.possibleGains.coerceAtLeast(0.0), budget, positive = true)
+        }
+    }
+}
+
+@Composable
+private fun CostMetric(label: String, value: String, modifier: Modifier = Modifier, positive: Boolean = false) {
+    Column(
+        modifier = modifier.clip(RoundedCornerShape(13.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (positive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun CostBar(label: String, value: Double, budget: Double, positive: Boolean = false) {
+    val share = if (budget > 0.0) (value / budget).toFloat().coerceIn(0f, 1f) else 0f
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        Text(label, modifier = Modifier.width(88.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 2)
+        LinearProgressIndicator(
+            progress = { share },
+            modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(99.dp)),
+            color = if (positive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+        Text(value.asRon(), modifier = Modifier.width(92.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun MaterialFormDialog(
+    onDismiss: () -> Unit,
+    onSave: (name: String, quantity: Float, unit: String, unitCost: Float) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf("") }
+    var unit by remember { mutableStateOf("buc") }
+    var unitCost by remember { mutableStateOf("") }
+    val parsedQuantity = quantity.toFloatOrNull()
+    val parsedCost = unitCost.toFloatOrNull()
+    FormDialog(title = "Adaugă material", onDismiss = onDismiss) {
+        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Denumire material") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(value = quantity, onValueChange = { quantity = it.filter { c -> c.isDigit() || c == '.' } }, label = { Text("Cantitate") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), shape = RoundedCornerShape(10.dp))
+            OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text("Unitate") }, modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(10.dp))
+        }
+        OutlinedTextField(value = unitCost, onValueChange = { unitCost = it.filter { c -> c.isDigit() || c == '.' } }, label = { Text("Cost / unitate (RON)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), shape = RoundedCornerShape(10.dp))
+        FormActions(
+            onBack = onDismiss,
+            onSave = { onSave(name, parsedQuantity!!, unit, parsedCost!!) },
+            saveEnabled = name.isNotBlank() && parsedQuantity != null && parsedQuantity > 0f && parsedCost != null && parsedCost >= 0f,
+        )
     }
 }
 
@@ -460,140 +1071,48 @@ private fun DetailPanel(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CORNER_SHAPE.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = ELEVATION.dp),
     ) {
         Column(
             modifier = Modifier.padding(SCREEN_PADDING.dp),
             verticalArrangement = Arrangement.spacedBy(CARD_SPACING.dp),
         ) {
-            ProjectHeader(state)
+            Text("Sumar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Situația curentă a proiectului.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-            // Rand 1 — termene
-            Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING.dp)) {
-                InformationCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Termen finalizare",
-                    value = state.endDate,
-                )
-                InformationCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Estimare finalizare",
-                    value = state.estimatedEndDate,
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(CARD_SPACING.dp)) {
+                SummaryMetric("Progres general", "${state.progressPercent}%", "${state.finishedQuantity.roundToInt()} / ${state.totalQuantity.roundToInt()} mp", Modifier.weight(1f))
+                SummaryMetric("Termen finalizare", state.endDate, "termen contractual", Modifier.weight(1f))
+                SummaryMetric("Estimare finalizare", state.estimatedEndDate, "conform ritmului actual", Modifier.weight(1f))
+                SummaryMetric("Valoare contract", "${state.budget.roundToInt()} RON", "valoare contractuală", Modifier.weight(1f))
+                SummaryMetric("Profit estimat", "${state.possibleGains.roundToInt()} RON", "venit minus salarii și materiale", Modifier.weight(1f), positive = state.possibleGains >= 0)
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(CARD_SPACING.dp)) {
+                SummaryMetric("Prezenți în șantier", state.presentOnSiteCount.toString(), "zi operațională: 03:00 – 02:59", Modifier.weight(1f))
+                SummaryMetric("Ritm de lucru", "${state.projectPace.roundToInt()} mp/zi", "media tuturor lucrărilor proiectului", Modifier.weight(1f))
+                SummaryMetric("Unelte în șantier", "—", "MOCK · logică în curs", Modifier.weight(1f), mock = true)
+                SummaryMetric("Pontări", state.pontariCount.toString(), "apasă pentru lista de pontări", Modifier.weight(1f), onClick = { openDialog = DetailDialog.PONTARI_LIST })
+                SummaryMetric("Revizii", "—", "MOCK · de făcut sau în progres", Modifier.weight(1f), mock = true)
             }
 
-            // Rand 2 — indicatori
-            Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING.dp)) {
-                InformationCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Mp realizati / total",
-                    value = "${state.finishedQuantity.roundToInt()} / ${state.totalQuantity.roundToInt()} mp",
-                )
-                InformationCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Pontari",
-                    value = state.pontariCount.toString(),
-                    onClick = { openDialog = DetailDialog.PONTARE },
-                )
-                InformationCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Nr. revizii de facut",
-                    value = "—",
-                )
-                InformationCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Zone",
-                    value = state.zoneItems.size.toString(),
-                    onClick = { openDialog = DetailDialog.ZONE },
-                )
-            }
-
-            // Rand 3 — grafic (jumatate) + mix lucrari & echipa (cealalta jumatate, deschid popup la click)
             Row(
-                modifier = Modifier.height(MIDDLE_SECTION_HEIGHT.dp),
+                modifier = Modifier.fillMaxWidth().height(390.dp),
                 horizontalArrangement = Arrangement.spacedBy(CARD_SPACING.dp),
             ) {
-                WorkGraphCard(
-                    series = state.graphSeries,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
+                MockPlanVsActualCard(
+                    modifier = Modifier.weight(2.05f).fillMaxHeight(),
+                    projectPace = state.projectPace,
                 )
-                ClickableSectionCard(
-                    title = "Mix lucrari",
-                    subtitle = "suprafete principale",
-                    onClick = { openDialog = DetailDialog.MIX },
-                    modifier = Modifier
-                        .weight(0.5f)
-                        .fillMaxHeight(),
-                ) {
-                    if (state.mixLucrari.isEmpty()) {
-                        EmptyHint("Nicio lucrare alocata")
-                    } else {
-                        state.mixLucrari.take(2).forEach { MixLucrareRow(it) }
-                    }
-                }
-                ClickableSectionCard(
-                    title = "Echipa curenta",
-                    onClick = { openDialog = DetailDialog.TEAM },
-                    modifier = Modifier
-                        .weight(0.5f)
-                        .fillMaxHeight(),
-                ) {
-                    Text(
-                        text = "${state.team.size} angajati",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = "${state.teamSalaryTotal.roundToInt()} RON salarii / luna",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                SummaryAttentionCard(
+                    modifier = Modifier.weight(0.95f).fillMaxHeight(),
+                )
             }
 
-            // Rand 4 — financiar
-            Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING.dp)) {
-                InformationCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Profit anticipat",
-                    value = "${state.possibleGains.roundToInt()} RON",
-                )
-                InformationCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Buget ofertat",
-                    value = "${state.budget.roundToInt()} RON",
-                )
-                InformationCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Costuri proiect",
-                    value = "${state.projectCosts.roundToInt()} RON",
-                )
-            }
         }
     }
 
     when (openDialog) {
-        DetailDialog.MIX -> MixLucrariPopup(
-            state = state,
-            viewModel = viewModel,
-            onDismiss = { openDialog = null },
-        )
-        DetailDialog.TEAM -> ListPopupDialog(
-            title = "Echipa curenta",
-            subtitle = "${state.team.size} angajati • ${state.teamSalaryTotal.roundToInt()} RON salarii / luna",
-            onDismiss = { openDialog = null },
-            onAdd = { openDialog = null; onAssignTeam() },
-        ) {
-            if (state.team.isEmpty()) {
-                EmptyHint("Niciun angajat alocat acestui proiect")
-            } else {
-                TeamTable(state.team)
-            }
-        }
         DetailDialog.ZONE -> ZonePopup(
             zones = state.zoneItems,
             viewModel = viewModel,
@@ -606,7 +1125,151 @@ private fun DetailPanel(
             onDismiss = { openDialog = null },
             onReload = onReload,
         )
+        DetailDialog.PONTARI_LIST -> ListPopupDialog(
+            title = "Pontări proiect",
+            subtitle = "${state.pontariCount} pontări înregistrate",
+            onDismiss = { openDialog = null },
+        ) {
+            if (state.pontari.isEmpty()) EmptyHint("Nu există pontări pentru acest proiect.")
+            else ReportsTable(state.pontari)
+        }
         null -> Unit
+    }
+}
+
+@Composable
+private fun MockPlanVsActualCard(modifier: Modifier = Modifier, projectPace: Double) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Plan vs realizat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Ritmul realizat în zilele lucrate.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                AssistChip(onClick = {}, label = { Text("MOCK") }, colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant))
+            }
+            MockLineChart(modifier = Modifier.weight(1f).fillMaxWidth())
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(Modifier.size(width = 24.dp, height = 4.dp).clip(RoundedCornerShape(99.dp)).background(MaterialTheme.colorScheme.primary))
+                    Text("Mp realizați", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(
+                    text = "Medie: ${projectPace.roundToInt()} mp/zi",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MockLineChart(modifier: Modifier = Modifier) {
+    val grid = MaterialTheme.colorScheme.outline.copy(alpha = 0.32f)
+    val line = MaterialTheme.colorScheme.primary
+    val surface = MaterialTheme.colorScheme.surface
+    Column(modifier = modifier) {
+        Canvas(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            val paddingLeft = 18.dp.toPx()
+            val paddingRight = 14.dp.toPx()
+            val paddingTop = 18.dp.toPx()
+            val paddingBottom = 12.dp.toPx()
+            val chartWidth = size.width - paddingLeft - paddingRight
+            val chartHeight = size.height - paddingTop - paddingBottom
+            repeat(4) { index ->
+                val y = paddingTop + chartHeight * index / 3f
+                drawLine(grid, Offset(paddingLeft, y), Offset(size.width - paddingRight, y), strokeWidth = 1.dp.toPx())
+            }
+            val values = listOf(.53f, .62f, .73f, .42f, .55f, .64f, .77f)
+            val path = Path()
+            values.forEachIndexed { index, value ->
+                val x = paddingLeft + chartWidth * index / (values.size - 1)
+                val y = paddingTop + chartHeight * (1f - value)
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, color = line, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+            values.forEachIndexed { index, value ->
+                val x = paddingLeft + chartWidth * index / (values.size - 1)
+                val y = paddingTop + chartHeight * (1f - value)
+                drawCircle(color = surface, radius = 4.dp.toPx(), center = Offset(x, y))
+                drawCircle(color = line, radius = 2.3.dp.toPx(), center = Offset(x, y))
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf("L", "Ma", "Mi", "J", "V", "S", "D").forEach { day ->
+                Text(day, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryAttentionCard(modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Necesită atenție", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Riscuri și sugestii CONDIK AI.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AttentionNote("TERMEN", "Ritm conform planului", "Progresul și resursele disponibile susțin termenul contractual actual.", MaterialTheme.colorScheme.secondaryContainer)
+            AttentionNote("ECHIPĂ", "Urmărește ritmul echipei", "Compară activitatea pe zile înainte de următoarea alocare.", Color(0xFFFFF3DD))
+            AttentionNote("MATERIALE", "Acoperire stoc", "MOCK · conectarea materialelor va semnala necesarul de aprovizionare.", Color(0xFFFFF3DD))
+        }
+    }
+}
+
+@Composable
+private fun AttentionNote(category: String, title: String, detail: String, background: Color) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(background).padding(13.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(category, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Text(detail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SummaryMetric(
+    title: String,
+    value: String,
+    helper: String,
+    modifier: Modifier = Modifier,
+    positive: Boolean = false,
+    mock: Boolean = false,
+    onClick: (() -> Unit)? = null,
+) {
+    Card(
+        modifier = if (onClick == null) modifier else modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+    ) {
+        Box(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = if (positive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface)
+                Text(helper, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+            }
+            if (mock) {
+                Text("MOCK", modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 6.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else if (onClick != null) {
+                Icon(Icons.Filled.ArrowUpward, contentDescription = "Deschide $title", modifier = Modifier.align(Alignment.TopEnd).size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+        }
     }
 }
 
@@ -1237,6 +1900,12 @@ private fun LucrareFormDialog(
                     }
                 }
             }
+        } else {
+            Text(
+                "Adaugă mai întâi o zonă; fiecare lucrare trebuie alocată unei zone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
 
         ExposedDropdownMenuBox(expanded = skillMenu, onExpandedChange = { skillMenu = it }) {
@@ -1275,7 +1944,7 @@ private fun LucrareFormDialog(
         )
 
         val qty = quantity.toFloatOrNull()
-        val canSave = qty != null && qty > 0f &&
+        val canSave = selectedZoneId != null && qty != null && qty > 0f &&
             ((creatingNew && newName.isNotBlank()) || (!creatingNew && selectedSkill != null))
         FormActions(
             onBack = onBack,
@@ -1580,3 +2249,12 @@ private fun Double.asQuantityRo(unit: String): String {
     return "$grouped $unit"
 }
 
+private fun Double.asRon(): String {
+    val sign = if (this < 0) "−" else ""
+    val grouped = kotlin.math.abs(roundToInt()).toString()
+        .reversed()
+        .chunked(3)
+        .joinToString(".")
+        .reversed()
+    return "$sign$grouped RON"
+}
