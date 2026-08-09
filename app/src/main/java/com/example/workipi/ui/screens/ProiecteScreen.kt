@@ -1,7 +1,9 @@
 package com.example.workipi.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,21 +13,27 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.ui.text.drawText
 import androidx.compose.material3.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -130,6 +138,8 @@ fun ProjectsScreen(
                 }
             }
 
+            PortfolioInsights(items = state.projects)
+
             GanttChartCard(items = state.projects)
 
             ProjectsTableCard(
@@ -203,14 +213,74 @@ fun ProjectsScreen(
 }
 
 @Composable
+private fun PortfolioInsights(items: List<ProjectWithProgress>) {
+    val active = items.count {
+        val status = computeStatus(it.progress, it.project.endDate, it.project.isOffer)
+        status == ProjectStatus.ACTIV || status == ProjectStatus.INTARZIAT
+    }
+    val delayed = items.count { riskRank(it) >= 4 }
+    val completed = items.count { it.progress >= 1f }
+    val totalSurface = items.sumOf { it.totalSurface.toDouble() }
+    val completedSurface = items.sumOf { it.completedSurface.toDouble() }
+    val portfolioProgress = if (totalSurface > 0) (completedSurface / totalSurface * 100).roundToInt() else 0
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        PortfolioMetric("Proiecte active", active.toString(), "în execuție", Modifier.weight(1f), MaterialTheme.colorScheme.primary)
+        PortfolioMetric("În risc", delayed.toString(), "termen depășit / estimat", Modifier.weight(1f), MaterialTheme.colorScheme.error)
+        PortfolioMetric("Finalizate", completed.toString(), "din portofoliu", Modifier.weight(1f), MaterialTheme.colorScheme.secondary)
+        PortfolioMetric("Progres portofoliu", "$portfolioProgress%", "suprafață realizată", Modifier.weight(1f), MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
+private fun PortfolioMetric(
+    label: String,
+    value: String,
+    helper: String,
+    modifier: Modifier,
+    accent: Color,
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(modifier = Modifier.size(width = 26.dp, height = 4.dp).clip(RoundedCornerShape(99.dp)).background(accent))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(helper, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
 private fun GanttChartCard(items: List<ProjectWithProgress>) {
-    var view by remember { mutableStateOf(GanttView.DAY) }
+    var view by remember { mutableStateOf(GanttView.MONTH) }
+    var windowDayOffset by remember { mutableIntStateOf(0) }
+    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    val visibleMonths = when (view) {
+        GanttView.DAY -> 1
+        GanttView.WEEK -> 3
+        GanttView.MONTH -> 6
+    }
+    val shiftMonths = when (view) {
+        GanttView.DAY, GanttView.WEEK -> 1
+        GanttView.MONTH -> 3
+    }
+    val initialStart = today.firstDayOfMonth().plusMonths(-(visibleMonths / 3))
+    val windowStart = initialStart.plusDays(windowDayOffset)
+    val windowEnd = windowStart.plusMonths(visibleMonths).plusDays(-1)
+
     Card(
         modifier = Modifier
             .fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -221,16 +291,57 @@ private fun GanttChartCard(items: List<ProjectWithProgress>) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Calendar proiecte",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    GanttLegend()
-                    Spacer(Modifier.width(4.dp))
-                    GanttViewChips(view) { view = it }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = "Portofoliu în timp", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Plan contractual, progres realizat și estimarea la ritmul curent.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                GanttViewChips(view) {
+                    view = it
+                    windowDayOffset = 0
+                }
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = {
+                        val destination = windowStart.plusMonths(-shiftMonths)
+                        windowDayOffset += destination.toEpochDays() - windowStart.toEpochDays()
+                    }) {
+                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Perioada anterioară")
+                    }
+                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Fereastra afișată", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = "${monthShort(windowStart.monthNumber)} ${windowStart.year} — ${monthShort(windowEnd.monthNumber)} ${windowEnd.year}",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    IconButton(onClick = {
+                        val destination = windowStart.plusMonths(shiftMonths)
+                        windowDayOffset += destination.toEpochDays() - windowStart.toEpochDays()
+                    }) {
+                        Icon(Icons.Filled.ChevronRight, contentDescription = "Perioada următoare")
+                    }
+                    VerticalDivider(modifier = Modifier.height(28.dp).padding(horizontal = 6.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                    TextButton(onClick = { windowDayOffset = 0 }) { Text("Astăzi") }
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                GanttLegend()
+                Text(
+                    text = "Glisează graficul spre stânga sau dreapta",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (items.isEmpty()) {
                 Box(
@@ -246,7 +357,13 @@ private fun GanttChartCard(items: List<ProjectWithProgress>) {
                     )
                 }
             } else {
-                GanttCanvas(items = items, view = view)
+                GanttCanvas(
+                    items = items,
+                    view = view,
+                    windowStart = windowStart,
+                    windowEnd = windowEnd,
+                    onPanDays = { days -> windowDayOffset += days },
+                )
             }
         }
     }
@@ -254,21 +371,29 @@ private fun GanttChartCard(items: List<ProjectWithProgress>) {
 
 @Composable
 private fun GanttViewChips(current: GanttView, onChange: (GanttView) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
         GanttView.entries.forEach { v ->
-            FilterChip(
-                selected = current == v,
-                onClick = { onChange(v) },
-                label = {
-                    Text(
-                        text = when (v) {
-                            GanttView.DAY -> "Zi"
-                            GanttView.WEEK -> "Saptamana"
-                            GanttView.MONTH -> "Luna"
-                        },
-                        fontSize = 11.sp,
-                    )
+            val selected = current == v
+            Text(
+                text = when (v) {
+                    GanttView.DAY -> "Zi"
+                    GanttView.WEEK -> "Săptămână"
+                    GanttView.MONTH -> "Lună"
                 },
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (selected) MaterialTheme.colorScheme.surface else Color.Transparent)
+                    .clickable { onChange(v) }
+                    .padding(horizontal = 13.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -277,9 +402,10 @@ private fun GanttViewChips(current: GanttView, onChange: (GanttView) -> Unit) {
 @Composable
 private fun GanttLegend() {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        LegendDot(Color.Black, "Planificat")
-        LegendDot(Color(0xFF2E7D32), "Mai rapid")
-        LegendDot(Color(0xFFC62828), "Intarziat")
+        LegendDot(MaterialTheme.colorScheme.primary.copy(alpha = 0.28f), "Plan")
+        LegendDot(MaterialTheme.colorScheme.primary, "Realizat")
+        LegendDot(MaterialTheme.colorScheme.secondary, "Estimare bună")
+        LegendDot(MaterialTheme.colorScheme.error, "Estimare întârziată")
     }
 }
 
@@ -297,15 +423,21 @@ private fun LegendDot(color: Color, label: String) {
 }
 
 @Composable
-private fun GanttCanvas(items: List<ProjectWithProgress>, view: GanttView) {
+private fun GanttCanvas(
+    items: List<ProjectWithProgress>,
+    view: GanttView,
+    windowStart: LocalDate,
+    windowEnd: LocalDate,
+    onPanDays: (Int) -> Unit,
+) {
     val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-
-    // Calculeaza estimatedEnd per proiect; null daca nu se poate (rata 0 sau finalizat)
     data class Row(
         val label: String,
         val start: LocalDate,
         val plannedEnd: LocalDate,
         val estimatedEnd: LocalDate?,
+        val progress: Float,
+        val noPace: Boolean,
     )
     val rows = items.map { item ->
         val rate = item.mpPerDay
@@ -317,57 +449,113 @@ private fun GanttCanvas(items: List<ProjectWithProgress>, view: GanttView) {
             start = item.project.startDate.toLocalDateTime(TimeZone.currentSystemDefault()).date,
             plannedEnd = item.project.endDate,
             estimatedEnd = estimated,
+            progress = item.progress,
+            noPace = item.progress < 1f && rate <= 0f,
         )
     }.sortedBy { it.start }
 
-    val minDate = rows.minOf { it.start }
-    val maxDate = rows.maxOf { maxOf(it.plannedEnd, it.estimatedEnd ?: it.plannedEnd) }
-    val totalDays = (maxDate.toEpochDays() - minDate.toEpochDays()).coerceAtLeast(1)
+    val totalDays = (windowEnd.toEpochDays() - windowStart.toEpochDays()).coerceAtLeast(1)
+    val renderStart = windowStart.plusDays(-totalDays)
+    val renderEnd = windowEnd.plusDays(totalDays)
+    val labelColWidth = 190.dp
+    val axisHeight = 38.dp
+    val rowHeight = 48.dp
+    val barHeight = 12.dp
+    val chartHeight = axisHeight + (rowHeight.value * rows.size).dp
+    val currentOnPanDays by rememberUpdatedState(onPanDays)
 
-    val labelColWidth = 110.dp
-    val rowHeight = 30.dp
-    val barHeight = 10.dp
-    val chartHeight = (rowHeight.value * rows.size + 52f).dp // +52 pentru axa zilelor + lunilor
-
-    val labelColor = MaterialTheme.colorScheme.onBackground
     val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-    val dayGridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-    val todayColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+    val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+    val dayGridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
+    val todayColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val errorColor = MaterialTheme.colorScheme.error
+    val axisColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+    val laneColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.24f)
+    val monthStripeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.035f)
+    val surfaceColor = MaterialTheme.colorScheme.surface
     val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
-    val labelStyle = MaterialTheme.typography.labelSmall
-    val tinyStyle = androidx.compose.ui.text.TextStyle(fontSize = 8.sp, color = mutedColor)
+    val axisLabelStyle = MaterialTheme.typography.labelSmall.copy(color = mutedColor, fontWeight = FontWeight.SemiBold)
+    val tinyStyle = androidx.compose.ui.text.TextStyle(fontSize = 9.sp, color = mutedColor, fontWeight = FontWeight.Medium)
 
-    Row(modifier = Modifier.fillMaxWidth().height(chartHeight)) {
-        // Coloana cu numele proiectelor
-        Column(modifier = Modifier.width(labelColWidth)) {
-            rows.forEach { r ->
-                Box(
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(chartHeight)
+            .clip(RoundedCornerShape(15.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.52f), RoundedCornerShape(15.dp))
+            .pointerInput(view) {
+                var pendingDays = 0f
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { _, dragAmount ->
+                        if (size.width > 0) {
+                            pendingDays += (-dragAmount / size.width) * totalDays
+                            val wholeDays = pendingDays.toInt()
+                            if (wholeDays != 0) {
+                                currentOnPanDays(wholeDays)
+                                pendingDays -= wholeDays
+                            }
+                        }
+                    },
+                    onDragEnd = { pendingDays = 0f },
+                    onDragCancel = { pendingDays = 0f },
+                )
+            },
+    ) {
+        Column(
+            modifier = Modifier
+                .width(labelColWidth)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(axisHeight)
+                    .background(axisColor)
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text("PROIECT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = mutedColor)
+            }
+            rows.forEachIndexed { index, r ->
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(rowHeight),
-                    contentAlignment = Alignment.CenterStart,
+                        .height(rowHeight)
+                        .background(if (index % 2 == 1) laneColor else Color.Transparent)
+                        .padding(horizontal = 14.dp),
+                    verticalArrangement = Arrangement.Center,
                 ) {
                     Text(
                         text = r.label,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = if (r.noPace) "${(r.progress * 100).roundToInt()}% · fără ritm" else "${(r.progress * 100).roundToInt()}% realizat",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (r.noPace) mutedColor else primaryColor,
                     )
                 }
             }
         }
 
-        // Canvas-ul cu bare + axa
         androidx.compose.foundation.Canvas(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
+                .background(surfaceColor)
         ) {
             val w = size.width
             val h = size.height
-            val axisH = 52f
-            val plotH = h - axisH
+            val axisH = axisHeight.toPx()
+            val plotTop = axisH
+            val plotBottom = h
             val dayPx = w / totalDays
             val labelEvery = when {
                 dayPx >= 14f -> 1
@@ -378,131 +566,178 @@ private fun GanttCanvas(items: List<ProjectWithProgress>, view: GanttView) {
             }
 
             fun xFor(date: LocalDate): Float {
-                val d = (date.toEpochDays() - minDate.toEpochDays()).toFloat()
+                val d = (date.toEpochDays() - windowStart.toEpochDays()).toFloat()
                 return d / totalDays * w
+            }
+
+            fun clipped(date: LocalDate): LocalDate = when {
+                date < renderStart -> renderStart
+                date > renderEnd -> renderEnd
+                else -> date
+            }
+
+            fun intersects(start: LocalDate, end: LocalDate): Boolean = start <= renderEnd && end >= renderStart
+
+            drawRect(color = axisColor, topLeft = androidx.compose.ui.geometry.Offset.Zero, size = androidx.compose.ui.geometry.Size(w, axisH))
+
+            rows.indices.forEach { index ->
+                if (index % 2 == 1) {
+                    drawRect(
+                        color = laneColor,
+                        topLeft = androidx.compose.ui.geometry.Offset(0f, plotTop + index * rowHeight.toPx()),
+                        size = androidx.compose.ui.geometry.Size(w, rowHeight.toPx()),
+                    )
+                }
+            }
+
+            var stripeMonth = renderStart.firstDayOfMonth()
+            var stripeIndex = 0
+            while (stripeMonth <= renderEnd) {
+                val nextMonth = stripeMonth.plusMonths(1)
+                if (stripeIndex % 2 == 0) {
+                    drawRect(
+                        color = monthStripeColor,
+                        topLeft = androidx.compose.ui.geometry.Offset(xFor(stripeMonth), plotTop),
+                        size = androidx.compose.ui.geometry.Size(xFor(nextMonth) - xFor(stripeMonth), plotBottom - plotTop),
+                    )
+                }
+                stripeMonth = nextMonth
+                stripeIndex++
             }
 
             when (view) {
                 GanttView.DAY -> {
-                    // Linii verticale subtiri per zi + numar zi
-                    var d = minDate
-                    while (d <= maxDate) {
+                    var d = renderStart
+                    var index = 0
+                    while (d <= renderEnd) {
                         val x = xFor(d)
                         drawLine(
                             color = dayGridColor,
-                            start = androidx.compose.ui.geometry.Offset(x, 0f),
-                            end = androidx.compose.ui.geometry.Offset(x, plotH),
-                            strokeWidth = 1.5f,
+                            start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                            end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                            strokeWidth = 1f,
                         )
-                        if (labelEvery > 0 && (d.dayOfMonth - 1) % labelEvery == 0) {
+                        if (labelEvery > 0 && index % labelEvery == 0) {
                             val layout = textMeasurer.measure(
                                 text = androidx.compose.ui.text.AnnotatedString(d.dayOfMonth.toString()),
                                 style = tinyStyle,
                             )
                             drawText(
                                 textLayoutResult = layout,
-                                topLeft = androidx.compose.ui.geometry.Offset(x + 1f, plotH + 2f),
+                                topLeft = androidx.compose.ui.geometry.Offset(x + 4f, 11f),
                             )
                         }
                         d = d.plusDays(1)
+                        index++
                     }
                 }
                 GanttView.WEEK -> {
-                    // Linii verticale + eticheta W1, W2 ... la fiecare 7 zile pornind de la minDate
                     var weekIndex = 1
-                    var d = minDate
-                    while (d <= maxDate) {
+                    var d = renderStart
+                    while (d <= renderEnd) {
                         val x = xFor(d)
                         drawLine(
                             color = dayGridColor,
-                            start = androidx.compose.ui.geometry.Offset(x, 0f),
-                            end = androidx.compose.ui.geometry.Offset(x, plotH),
-                            strokeWidth = 1.5f,
+                            start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                            end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                            strokeWidth = 1f,
                         )
                         val layout = textMeasurer.measure(
-                            text = androidx.compose.ui.text.AnnotatedString("W$weekIndex"),
+                            text = androidx.compose.ui.text.AnnotatedString("S$weekIndex"),
                             style = tinyStyle,
                         )
                         drawText(
                             textLayoutResult = layout,
-                            topLeft = androidx.compose.ui.geometry.Offset(x + 2f, plotH + 2f),
+                            topLeft = androidx.compose.ui.geometry.Offset(x + 4f, 11f),
                         )
                         weekIndex++
                         d = d.plusDays(7)
                     }
                 }
                 GanttView.MONTH -> {
-                    // Doar separatori la inceput de luna — eticheta lunii e desenata mai jos
+                    Unit
                 }
             }
 
-            // Grid vertical mai vizibil + eticheta luna la inceput de luna (mereu vizibil)
-            var cur = LocalDate(minDate.year, minDate.month, 1)
-            if (cur < minDate) cur = cur.plusMonths(1)
-            while (cur <= maxDate) {
+            var cur = renderStart.firstDayOfMonth()
+            while (cur <= renderEnd) {
                 val x = xFor(cur)
                 drawLine(
                     color = gridColor,
-                    start = androidx.compose.ui.geometry.Offset(x, 0f),
-                    end = androidx.compose.ui.geometry.Offset(x, plotH),
-                    strokeWidth = if (view == GanttView.MONTH) 1.5f else 1.2f,
+                    start = androidx.compose.ui.geometry.Offset(x, plotTop),
+                    end = androidx.compose.ui.geometry.Offset(x, plotBottom),
+                    strokeWidth = 1.2f,
                 )
-                val monthLabelY = if (view == GanttView.MONTH) plotH + 2f else plotH + 18f
-                val layout = textMeasurer.measure(
-                    text = androidx.compose.ui.text.AnnotatedString(monthShort(cur.monthNumber)),
-                    style = labelStyle.copy(color = mutedColor, fontWeight = FontWeight.SemiBold),
-                )
-                drawText(
-                    textLayoutResult = layout,
-                    topLeft = androidx.compose.ui.geometry.Offset(x + 4f, monthLabelY),
-                )
+                if (view == GanttView.MONTH) {
+                    val layout = textMeasurer.measure(
+                        text = androidx.compose.ui.text.AnnotatedString("${monthShort(cur.monthNumber)} ${cur.year}"),
+                        style = axisLabelStyle,
+                    )
+                    drawText(textLayoutResult = layout, topLeft = androidx.compose.ui.geometry.Offset(x + 8f, 10f))
+                }
                 cur = cur.plusMonths(1)
             }
 
-            // Linia verticala pentru ziua de azi (daca e in range)
-            if (today in minDate..maxDate) {
+            if (today in renderStart..renderEnd) {
                 val xToday = xFor(today)
                 drawRect(
                     color = todayColor,
-                    topLeft = androidx.compose.ui.geometry.Offset(xToday - 4f, 0f),
-                    size = androidx.compose.ui.geometry.Size(8f, plotH),
+                    topLeft = androidx.compose.ui.geometry.Offset(xToday - 3f, plotTop),
+                    size = androidx.compose.ui.geometry.Size(6f, plotBottom - plotTop),
                 )
+                val todayLayout = textMeasurer.measure(androidx.compose.ui.text.AnnotatedString("AZI"), axisLabelStyle.copy(color = primaryColor, fontWeight = FontWeight.Bold))
+                drawText(todayLayout, topLeft = androidx.compose.ui.geometry.Offset(xToday + 5f, 10f))
             }
 
-            // Barele
             val barPx = barHeight.toPx()
             val rowPx = rowHeight.toPx()
             rows.forEachIndexed { i, r ->
-                val yCenter = i * rowPx + rowPx / 2f
+                val yCenter = plotTop + i * rowPx + rowPx / 2f
                 val yTop = yCenter - barPx / 2f
-                val xStart = xFor(r.start)
-                val xPlanned = xFor(r.plannedEnd)
+                if (intersects(r.start, r.plannedEnd)) {
+                    val xStart = xFor(clipped(r.start))
+                    val xPlanned = xFor(clipped(r.plannedEnd))
+                    drawRoundRect(
+                        color = primaryColor.copy(alpha = 0.22f),
+                        topLeft = androidx.compose.ui.geometry.Offset(xStart, yTop),
+                        size = androidx.compose.ui.geometry.Size((xPlanned - xStart).coerceAtLeast(2f), barPx),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(barPx / 2f, barPx / 2f),
+                    )
 
-                // Linia neagra: start -> plannedEnd
-                drawRect(
-                    color = Color.Black,
-                    topLeft = androidx.compose.ui.geometry.Offset(xStart, yTop),
-                    size = androidx.compose.ui.geometry.Size((xPlanned - xStart).coerceAtLeast(1f), barPx),
-                )
+                    val totalPlanDays = (r.plannedEnd.toEpochDays() - r.start.toEpochDays()).coerceAtLeast(1)
+                    val completedDate = r.start.plusDays((totalPlanDays * r.progress.coerceIn(0f, 1f)).roundToInt())
+                    if (intersects(r.start, completedDate)) {
+                        val xProgressEnd = xFor(clipped(completedDate))
+                        drawRoundRect(
+                            color = primaryColor,
+                            topLeft = androidx.compose.ui.geometry.Offset(xStart, yTop),
+                            size = androidx.compose.ui.geometry.Size((xProgressEnd - xStart).coerceAtLeast(2f), barPx),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(barPx / 2f, barPx / 2f),
+                        )
+                    }
+                    if (r.plannedEnd in renderStart..renderEnd) {
+                        val plannedX = xFor(r.plannedEnd)
+                        drawLine(color = primaryColor.copy(alpha = 0.75f), start = androidx.compose.ui.geometry.Offset(plannedX, yTop - 5f), end = androidx.compose.ui.geometry.Offset(plannedX, yTop + barPx + 5f), strokeWidth = 2f)
+                    }
+                }
 
-                // Coada
                 val est = r.estimatedEnd
                 if (est != null && est != r.plannedEnd) {
-                    val xEst = xFor(est)
-                    if (est > r.plannedEnd) {
-                        // Rosu: plannedEnd -> estimatedEnd (extindere la dreapta)
-                        drawRect(
-                            color = Color(0xFFC62828),
-                            topLeft = androidx.compose.ui.geometry.Offset(xPlanned, yTop),
-                            size = androidx.compose.ui.geometry.Size((xEst - xPlanned), barPx),
+                    val forecastColor = if (est > r.plannedEnd) errorColor else secondaryColor
+                    if (intersects(r.plannedEnd, est)) {
+                        val plannedX = xFor(clipped(r.plannedEnd))
+                        val estimateX = xFor(clipped(est))
+                        drawLine(
+                            color = forecastColor,
+                            start = androidx.compose.ui.geometry.Offset(plannedX, yCenter),
+                            end = androidx.compose.ui.geometry.Offset(estimateX, yCenter),
+                            strokeWidth = 3f,
                         )
-                    } else {
-                        // Verde: estimatedEnd -> plannedEnd suprapus peste segmentul final negru
-                        drawRect(
-                            color = Color(0xFF2E7D32),
-                            topLeft = androidx.compose.ui.geometry.Offset(xEst, yTop),
-                            size = androidx.compose.ui.geometry.Size((xPlanned - xEst), barPx),
-                        )
+                        if (est in renderStart..renderEnd) {
+                            drawCircle(color = forecastColor, radius = 5f, center = androidx.compose.ui.geometry.Offset(estimateX, yCenter))
+                        } else {
+                            drawCircle(color = forecastColor, radius = 4f, center = androidx.compose.ui.geometry.Offset(if (est > renderEnd) w - 4f else 4f, yCenter))
+                        }
                     }
                 }
             }
@@ -512,6 +747,8 @@ private fun GanttCanvas(items: List<ProjectWithProgress>, view: GanttView) {
 
 private fun LocalDate.plusDays(days: Int): LocalDate =
     LocalDate.fromEpochDays(this.toEpochDays() + days)
+
+private fun LocalDate.firstDayOfMonth(): LocalDate = LocalDate(year, monthNumber, 1)
 
 private fun LocalDate.plusMonths(months: Int): LocalDate {
     val totalMonths = this.year * 12 + (this.monthNumber - 1) + months
@@ -601,9 +838,10 @@ private fun ProjectsTableCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
@@ -611,11 +849,10 @@ private fun ProjectsTableCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Lista proiecte",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = "Lista proiecte", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Deschide un proiect pentru detalii și control operațional.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 FilterChips(filter, onFilterChange)
             }
 
@@ -689,7 +926,12 @@ private fun TableHeader(
         "Nume proiect", "Procent progres", "Mp realizati / total",
         "Medie Mp/zi", "Nr. revizii", "Riscuri"
     )
-    Row(modifier = Modifier.padding(vertical = 10.dp)) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f))
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+    ) {
         labels.forEachIndexed { i, label ->
             val col = sortColumns[i]
             Row(
@@ -727,30 +969,31 @@ private fun TableHeader(
 private fun TableRow(item: ProjectWithProgress, onClick: () -> Unit, onDelete: () -> Unit) {
     Row(
         modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(horizontal = 10.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = item.project.title,
-            modifier = Modifier.width(colWidths[0]),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-        )
-        Text(
-            text = "${(item.progress * 100).roundToInt()}%",
-            modifier = Modifier.width(colWidths[1]),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Column(modifier = Modifier.width(colWidths[0]), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(text = item.project.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            StatusBadge(computeStatus(item.progress, item.project.endDate, item.project.isOffer))
+        }
+        Column(modifier = Modifier.width(colWidths[1]), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(text = "${(item.progress * 100).roundToInt()}%", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            LinearProgressIndicator(
+                progress = { item.progress },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(99.dp)),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
+        }
         Text(
             text = "${item.completedSurface.toInt()} / ${item.totalSurface.toInt()} mp",
             modifier = Modifier.width(colWidths[2]),
             style = MaterialTheme.typography.bodyMedium,
         )
         Text(
-            text = "${item.mpPerDay.toInt()} mp",
+            text = "${item.mpPerDay.toInt()} mp/zi",
             modifier = Modifier.width(colWidths[3]),
             style = MaterialTheme.typography.bodyMedium,
         )

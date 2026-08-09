@@ -5,20 +5,23 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
 private val WorkIPIColorScheme = lightColorScheme(
-    primary          = OrangePrimary,
-    onPrimary        = BackgroundWhite,
-    primaryContainer = OrangeLight,
-    onPrimaryContainer = OrangeDark,
+    primary          = IndigoPrimary,
+    onPrimary        = AppSurface,
+    primaryContainer = IndigoLight,
+    onPrimaryContainer = IndigoDark,
+    secondary        = TealAccent,
+    secondaryContainer = TealLight,
 
-    background       = BackgroundWhite,
-    onBackground     = TextPrimary,
+    background       = AppBackground,
+    onBackground     = InkPrimary,
 
-    surface          = SurfaceWhite,
-    onSurface        = TextPrimary,
-    onSurfaceVariant = TextSecondary,
+    surface          = AppSurface,
+    surfaceVariant   = SurfaceSubtle,
+    onSurface        = InkPrimary,
+    onSurfaceVariant = InkSecondary,
 
     error            = ErrorRed,
-    outline          = DividerGray
+    outline          = OutlineSoft
 )
 
 @Composable

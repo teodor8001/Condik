@@ -2,16 +2,18 @@ package com.example.workipi.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Culori principale WorkIPI
-val OrangePrimary    = Color(0xFFE07B39)   // portocaliu caldut, nu prea aprins
-val OrangeLight      = Color(0xFFF5A876)   // portocaliu deschis (hover / ripple)
-val OrangeDark       = Color(0xFFB85C1A)   // portocaliu inchis (pressed)
+// Paletă luminoasă CONDIK: albastru-indigo pentru acțiuni, verde-petrol pentru semnale pozitive.
+val IndigoPrimary       = Color(0xFF5368D9)
+val IndigoLight         = Color(0xFFE9ECFF)
+val IndigoDark          = Color(0xFF3348AD)
+val TealAccent          = Color(0xFF17856D)
+val TealLight           = Color(0xFFE2F5EF)
 
-val BackgroundWhite  = Color(0xFFFFFFFF)
-val SurfaceWhite     = Color(0xFFF8F8F8)
+val AppBackground       = Color(0xFFF6F7FB)
+val AppSurface          = Color(0xFFFFFFFF)
+val SurfaceSubtle       = Color(0xFFF0F2F8)
 
-val TextPrimary      = Color(0xFF1A1A1A)
-val TextSecondary    = Color(0xFF6B6B6B)
-
-val DividerGray      = Color(0xFFE0E0E0)
-val ErrorRed         = Color(0xFFD32F2F)
+val InkPrimary          = Color(0xFF20263D)
+val InkSecondary        = Color(0xFF68708A)
+val OutlineSoft         = Color(0xFFDDE1EC)
+val ErrorRed            = Color(0xFFBA3B4A)

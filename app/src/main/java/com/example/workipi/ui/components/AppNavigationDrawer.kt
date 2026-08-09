@@ -91,30 +91,27 @@ private fun DrawerContent(
     Column(
         modifier = Modifier
             .fillMaxHeight()
-            .width(260.dp)
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(vertical = 24.dp)
+            .width(272.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
+            .padding(vertical = 18.dp)
     ) {
         // ---- Header: logo ----
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                text = "CONDIK",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Management santier",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 0.5.sp
-            )
+            Box(
+                modifier = Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) { Text("C", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(text = "CONDIK", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = "Management șantier", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.35.sp)
+            }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(22.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -131,7 +128,7 @@ private fun DrawerContent(
                     Text(
                         text = "ADMINISTRARE",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
@@ -348,8 +345,8 @@ fun AppNavigationDrawer(
         PermanentNavigationDrawer(
             drawerContent = {
                 PermanentDrawerSheet(
-                    modifier = Modifier.width(260.dp),
-                    drawerContainerColor = MaterialTheme.colorScheme.surface
+                    modifier = Modifier.width(272.dp),
+                    drawerContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
                 ) {
                     DrawerContent(
                         navController = navController,

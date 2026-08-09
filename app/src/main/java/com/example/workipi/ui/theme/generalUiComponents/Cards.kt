@@ -52,13 +52,13 @@ fun InformationCard(
     Card(
         modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier,
         shape = RoundedCornerShape(CORNER_SHAPE.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = ELEVATION.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = ELEVATION.dp, pressedElevation = 3.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = cardBorder(),
     ) {
         Column(
             modifier = Modifier.padding(PADDING.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(LARGER_SPACING.dp),
         ) {
             Row(
@@ -67,7 +67,7 @@ fun InformationCard(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(WEIGHT)
                 )
@@ -86,4 +86,3 @@ fun InformationCard(
         }
     }
 }
-
